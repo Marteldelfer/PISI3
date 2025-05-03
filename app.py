@@ -4,11 +4,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from collections import Counter
 
-# Configurações iniciais
 st.set_page_config(page_title="Análise de Filmes - TMDb", layout="centered")
 st.title("🎬 Análise de Dados do TMDb")
 
-# Carregar o dataset
 @st.cache_data
 def load_data():
     df = pd.read_csv("tmdb_new.csv")
@@ -18,15 +16,12 @@ df = load_data()
 
 st.header("📄 Pré-visualização dos Dados")
 
-# Mostrar dimensões do dataset
 st.write(f"**Dimensões do conjunto de dados:** {df.shape[0]} linhas × {df.shape[1]} colunas")
 
 
-# Visualização das primeiras linhas
 num_rows = st.slider("Quantas linhas deseja visualizar?", min_value=5, max_value=100, value=10, step=5)
 st.dataframe(df.head(num_rows))
 
-# Visualização expandida (opcional)
 with st.expander("🔍 Ver todos os dados (use com moderação)"):
     st.dataframe(df)
 
@@ -42,15 +37,13 @@ st.pyplot(fig1)
 
 # --- Gráfico 2: Nota média por idioma ---
 st.subheader("🌍 Nota Média por Idioma (Top 10)")
-# Filtra idiomas não nulos e alfabéticos
+
 valid_langs = df['original_language'].dropna()
 valid_langs = valid_langs[valid_langs.str.isalpha()]
 
-# Filtrar apenas idiomas com mais de 20 filmes
 lang_counts = valid_langs.value_counts()
 frequent_langs = lang_counts[lang_counts > 20].index
 
-# Calcular nota média apenas para idiomas frequentes
 filtered_df = df[df['original_language'].isin(frequent_langs)]
 language_ratings = (
     filtered_df.groupby('original_language')['vote_average']
@@ -86,10 +79,8 @@ st.pyplot(fig3)
 # --- Gráfico 4A: Distribuição de Lucros Positivos com Filtro ---
 st.subheader("📈 Distribuição de Lucros Positivos")
 
-# Definir lucros novamente
 lucros = df[df['profit_percentage'] > 0]
 
-# Filtro interativo de faixa de lucro
 max_lucro = int(min(5000, lucros['profit_percentage'].max()))
 limite = st.slider("Limitar exibição de lucro (%)", 10, max_lucro, value=500, step=50)
 
@@ -102,7 +93,6 @@ ax_lucros.set_xlabel("Lucro (%)")
 ax_lucros.set_ylabel("Frequência")
 st.pyplot(fig_lucros)
 
-# Estatísticas
 st.markdown("**🔍 Estatísticas dos Lucros Positivos (filtrados):**")
 st.write(lucros_filtrados['profit_percentage'].describe())
 
@@ -115,3 +105,30 @@ ax_prejuizo.set_title("Distribuição dos Prejuízos (%)")
 ax_prejuizo.set_xlabel("Lucro (%)")
 ax_prejuizo.set_ylabel("Frequência")
 st.pyplot(fig_prejuizo)
+
+# --- Gráfico 6 ---
+st.subheader("💎 Top 10 Filmes Bem Avaliados e Pouco Populares")
+
+mediana_pop = df['popularity'].median()
+undervalued = df[
+    (df['popularity'] < mediana_pop) &
+    (df['vote_average'] >= 7.5) &
+    (df['vote_count'] >= 50)
+]
+
+top_pearl = undervalued.sort_values(
+    ['vote_average', 'vote_count'], ascending=[False, False]
+).head(10)
+
+fig6, ax6 = plt.subplots(figsize=(8, 5))
+sns.barplot(
+    data=top_pearl, 
+    x='vote_average', 
+    y='title', 
+    palette='magma', 
+    ax=ax6
+)
+ax6.set_title("Top 10 Filmes com Alta Avaliação e Baixa Popularidade")
+ax6.set_xlabel("Média de Votos")
+ax6.set_ylabel("Título do Filme")
+st.pyplot(fig6)
