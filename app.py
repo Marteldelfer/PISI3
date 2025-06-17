@@ -132,3 +132,121 @@ ax6.set_title("Top 10 Filmes com Alta Avaliação e Baixa Popularidade")
 ax6.set_xlabel("Média de Votos")
 ax6.set_ylabel("Título do Filme")
 st.pyplot(fig6)
+
+
+# Novos gráficos de prejuízo e lucro divididos por gênero
+genero_traducao = {
+    "Action": "Ação",
+    "Adventure": "Aventura",
+    "Animation": "Animação",
+    "Comedy": "Comédia",
+    "Crime": "Crime",
+    "Documentary": "Documentário",
+    "Drama": "Drama",
+    "Family": "Família",
+    "Fantasy": "Fantasia",
+    "History": "História",
+    "Horror": "Terror",
+    "Music": "Música",
+    "Mystery": "Mistério",
+    "Romance": "Romance",
+    "Science Fiction": "Ficção Científica",
+    "TV Movie": "Filme para TV",
+    "Thriller": "Suspense",
+    "War": "Guerra",
+    "Western": "Faroeste"
+}
+
+def traduzir_generos(lista_generos):
+    return [genero_traducao.get(g, g) for g in lista_generos]
+
+def agrupar_outros(df_agrupado, top_n=8):
+    # Pega os top_n gêneros por número de filmes
+    top_generos = df_agrupado['count'].nlargest(top_n).index.tolist()
+    outros = df_agrupado.index.difference(top_generos)
+
+    # Soma os valores do grupo Outros
+    outros_df = df_agrupado.loc[outros]
+    if not outros_df.empty:
+        # Para média, usa média ponderada pelo count
+        mean_ponderada = np.average(outros_df['mean_profit'], weights=outros_df['count'])
+        count_soma = outros_df['count'].sum()
+        # Monta novo df com top + "Outros"
+        df_top = df_agrupado.loc[top_generos].copy()
+        df_top.loc['Outros'] = {'mean_profit': mean_ponderada, 'count': count_soma}
+        return df_top
+    else:
+        return df_agrupado.loc[top_generos]
+
+def traduzir_generos(lista_generos):
+    traducoes = {
+        "Action": "Ação", "Adventure": "Aventura", "Animation": "Animação",
+        "Comedy": "Comédia", "Crime": "Crime", "Documentary": "Documentário",
+        "Drama": "Drama", "Family": "Família", "Fantasy": "Fantasia",
+        "History": "História", "Horror": "Terror", "Music": "Música",
+        "Mystery": "Mistério", "Romance": "Romance", "Science Fiction": "Ficção Científica",
+        "TV Movie": "Filme de TV", "Thriller": "Suspense", "War": "Guerra", "Western": "Faroeste"
+    }
+    return [traducoes.get(genero, genero) for genero in lista_generos]
+
+def agrupar_outros(df_agrupado, top_n=8):
+    top = df_agrupado.sort_values('count', ascending=False).head(top_n)
+    outros = df_agrupado.drop(top.index)
+    outros_mean = outros['med_profit'].median() if 'med_profit' in outros else outros['mean_profit'].median()
+    outros_total = outros['count'].sum()
+    df_top = top.copy()
+    df_top.loc["Outros"] = [outros_mean, outros_total]
+    return df_top
+
+def processar_por_genero(df_filtrado, lucro=True):
+    df_filtrado = df_filtrado.copy()
+    df_filtrado = df_filtrado[df_filtrado['genres'].notna()]
+    df_filtrado['genres_list'] = df_filtrado['genres'].apply(lambda x: [g.strip() for g in x.split(',')])
+    df_exploded = df_filtrado.explode('genres_list')
+
+    if lucro:
+        # Remover lucros extremos acima de 5000% para não distorcer e evitar outliers
+        df_exploded = df_exploded[df_exploded['profit_percentage'] <= 50000]
+        df_agrupado = df_exploded.groupby('genres_list')['profit_percentage'].agg(['median', 'count']).rename(columns={'median':'med_profit'})
+        df_agrupado['med_profit'] = df_agrupado['med_profit'].clip(upper=500)
+    else:
+        df_agrupado = df_exploded.groupby('genres_list')['profit_percentage'].agg(['mean', 'count']).rename(columns={'mean':'mean_profit'})
+        df_agrupado['mean_profit'] = df_agrupado['mean_profit'].clip(lower=-100)
+
+    df_agrupado = agrupar_outros(df_agrupado, top_n=8)
+
+    # Traduz os gêneros
+    df_agrupado.index = traduzir_generos(df_agrupado.index.to_list())
+    return df_agrupado
+
+# --- Gráfico de Lucro por Gênero ---
+st.subheader("💹 Mediana de Lucro (%) por Gênero (máx 500%)")
+df_lucro = df[df['profit_percentage'] > 0]
+df_lucro_agrupado = processar_por_genero(df_lucro, lucro=True)
+
+fig_lucro_gen, ax_lucro_gen = plt.subplots(figsize=(10, 6))  # ← aumento no tamanho
+sns.barplot(x=df_lucro_agrupado.index, y=df_lucro_agrupado['med_profit'], color='green', ax=ax_lucro_gen)
+ax_lucro_gen.set_title("Lucro Mediano (%) por Gênero (máximo 500%)")
+ax_lucro_gen.set_xlabel("Gênero")
+ax_lucro_gen.set_ylabel("Lucro Mediano (%)")
+ax_lucro_gen.set_xticklabels(ax_lucro_gen.get_xticklabels(), rotation=45, ha='right')
+ax_lucro_gen.set_ylim(0, 550)  # ← margem visual maior
+st.pyplot(fig_lucro_gen)
+
+
+# --- Gráfico de Prejuízo por Gênero ---
+st.subheader("📉 Média de Prejuízo (%) por Gênero (mínimo -100%)")
+df_prejuizo = df[df['profit_percentage'] < 0]
+df_prejuizo_agrupado = processar_por_genero(df_prejuizo, lucro=False)
+
+fig_prejuizo_gen, ax_prejuizo_gen = plt.subplots(figsize=(10, 6))
+sns.barplot(x=df_prejuizo_agrupado.index, y=-df_prejuizo_agrupado['mean_profit'], color='red', ax=ax_prejuizo_gen)
+ax_prejuizo_gen.set_title("Prejuízo Médio (%) por Gênero (mínimo -100%)")
+ax_prejuizo_gen.set_xlabel("Gênero")
+ax_prejuizo_gen.set_ylabel("Prejuízo Médio (%)")
+ax_prejuizo_gen.set_xticklabels(ax_prejuizo_gen.get_xticklabels(), rotation=45, ha='right')
+ax_prejuizo_gen.set_ylim(0, 110)
+st.pyplot(fig_prejuizo_gen)
+
+
+
