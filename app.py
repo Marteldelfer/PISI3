@@ -28,6 +28,9 @@ def load_base_data():
                 lambda row: ((row['revenue'] - row['budget']) / row['budget']) * 100 if row['budget'] > 0 else 0,
                 axis=1
             )
+        # Adicionar coluna de ano de lançamento para facilitar o filtro
+        if 'release_date' in df.columns:
+            df['release_year'] = pd.to_datetime(df['release_date'], errors='coerce').dt.year
         return df
     except FileNotFoundError:
         st.error("ERRO: Arquivo 'tmdb_new.csv' não encontrado. O app não pode continuar sem ele.")
@@ -105,114 +108,230 @@ with tab1:
         st.header("📄 Análise Exploratória dos Dados")
         st.write(f"**Dimensões do conjunto de dados:** `{df.shape[0]}` linhas × `{df.shape[1]}` colunas")
 
-        with st.expander("🔍 Visualizar Amostra dos Dados"):
-            st.dataframe(df.head(10))
+        # --- Filtros na Sidebar ---
+        st.sidebar.header("⚙️ Filtros de Análise")
 
-        col1, col2 = st.columns(2)
+        # 1. Filtro de Intervalo de Anos de Lançamento
+        df_for_filters = df.dropna(subset=['release_year']).copy()
+        df_for_filters['release_year'] = df_for_filters['release_year'].astype(int)
 
-        with col1:
-            st.subheader("💰 Receita vs. Orçamento")
-            fig1, ax1 = plt.subplots()
-            sns.scatterplot(data=df[df['budget'] > 1000], x='budget', y='revenue', alpha=0.4, ax=ax1, color='royalblue')
-            ax1.set_xlabel('Orçamento (USD)')
-            ax1.set_ylabel('Receita (USD)')
-            st.pyplot(fig1)
-
-            st.subheader("🎭 Top 10 Gêneros por Número de Filmes")
-            genre_counts = Counter()
-            for genre_str in df['genres'].dropna():
-                genres_list = [g.strip() for g in genre_str.split(',')]
-                genre_counts.update(genres_list)
-            top_genres = genre_counts.most_common(10)
-            genres_names, genres_vals = zip(*top_genres)
-            fig3, ax3 = plt.subplots()
-            sns.barplot(x=list(genres_vals), y=list(genres_names), palette='mako', ax=ax3)
-            ax3.set_xlabel("Número de Filmes")
-            ax3.set_ylabel("Gênero")
-            st.pyplot(fig3)
+        df_filtered_by_year = df.copy() # Inicializa com o df completo
+        if not df_for_filters.empty:
+            min_year_data = int(df_for_filters['release_year'].min())
+            max_year_data = int(df_for_filters['release_year'].max())
             
-            st.subheader("⏱️ Distribuição da Duração dos Filmes (Runtime)")
-            fig_runtime, ax_runtime = plt.subplots()
-            sns.histplot(df['runtime'].dropna(), bins=50, kde=True, ax=ax_runtime, color='purple')
-            ax_runtime.set_xlabel("Duração (minutos)")
-            ax_runtime.set_ylabel("Frequência")
-            st.pyplot(fig_runtime)
+            year_range = st.sidebar.slider(
+                "📅 Intervalo de Anos de Lançamento",
+                min_value=min_year_data,
+                max_value=max_year_data,
+                value=(min_year_data, max_year_data),
+                step=1
+            )
+            df_filtered_by_year = df[(df['release_year'] >= year_range[0]) & (df['release_year'] <= year_range[1])]
+        
+        # 2. Filtro de Seleção de Gêneros
+        all_genres = sorted(list(set([g.strip() for genre_str in df['genres'].dropna() for g in genre_str.split(',') if g.strip()])))
+        all_genres_translated = traduzir_generos(all_genres)
+        
+        selected_genres_translated = st.sidebar.multiselect(
+            "🎭 Selecionar Gêneros",
+            options=all_genres_translated,
+            default=all_genres_translated # Seleciona todos por padrão
+        )
+        
+        reverse_traducoes = {v: k for k, v in {
+            "Action": "Ação", "Adventure": "Aventura", "Animation": "Animação", "Comedy": "Comédia",
+            "Crime": "Crime", "Documentary": "Documentário", "Drama": "Drama", "Family": "Família",
+            "Fantasy": "Fantasia", "History": "História", "Horror": "Terror", "Music": "Música",
+            "Mystery": "Mistério", "Romance": "Romance", "Science Fiction": "Ficção Científica",
+            "TV Movie": "Filme de TV", "Thriller": "Suspense", "War": "Guerra", "Western": "Faroeste"
+        }.items()}
+        selected_genres_english = [reverse_traducoes.get(g, g) for g in selected_genres_translated]
 
-        with col2:
-            st.subheader("🌍 Nota Média por Idioma (Top 10)")
-            valid_langs = df['original_language'].dropna()
-            valid_langs = valid_langs[valid_langs.str.isalpha()]
-            lang_counts = valid_langs.value_counts()
-            frequent_langs = lang_counts[lang_counts > 20].index
-            filtered_df = df[df['original_language'].isin(frequent_langs)]
-            language_ratings = filtered_df.groupby('original_language')['vote_average'].mean().sort_values(ascending=False).head(10)
-            fig2, ax2 = plt.subplots()
-            sns.barplot(x=language_ratings.values, y=language_ratings.index, palette='viridis', ax=ax2)
-            ax2.set_xlabel("Nota Média")
-            ax2.set_ylabel("Idioma")
-            st.pyplot(fig2)
+        if selected_genres_english:
+            df_filtered_by_genre = df_filtered_by_year[
+                df_filtered_by_year['genres'].apply(
+                    lambda x: any(genre in [g.strip() for g in str(x).split(',')] for genre in selected_genres_english) if pd.notna(x) else False
+                )
+            ]
+        else:
+            df_filtered_by_genre = df_filtered_by_year.copy()
 
-            st.subheader("💎 Top 10 'Joias Escondidas'")
-            mediana_pop = df['popularity'].median()
-            undervalued = df[(df['popularity'] < mediana_pop) & (df['vote_average'] >= 7.5) & (df['vote_count'] >= 100)]
-            top_pearl = undervalued.sort_values(['vote_average', 'vote_count'], ascending=[False, False]).head(10)
-            fig6, ax6 = plt.subplots()
-            sns.barplot(data=top_pearl, x='vote_average', y='title', palette='magma', ax=ax6)
-            ax6.set_xlabel("Média de Votos")
-            ax6.set_ylabel("Título do Filme")
-            st.pyplot(fig6)
+        # 3. Filtro de Intervalo de Orçamento
+        df_for_budget_filter = df_filtered_by_genre.dropna(subset=['budget']).copy()
+        df_for_budget_filter['budget'] = df_for_budget_filter['budget'].astype(float)
+        
+        df_filtered_by_budget = df_filtered_by_genre.copy()
+        if not df_for_budget_filter.empty and df_for_budget_filter['budget'].max() > 0:
+            min_budget_data = float(df_for_budget_filter['budget'].min())
+            max_budget_data = float(df_for_budget_filter['budget'].max())
             
-            st.subheader("⭐ Popularidade vs. Nota Média")
-            fig_pop, ax_pop = plt.subplots()
-            sns.scatterplot(data=df, x='popularity', y='vote_average', alpha=0.3, ax=ax_pop, color='gold')
-            ax_pop.set_xlabel("Popularidade")
-            ax_pop.set_ylabel("Nota Média")
-            ax_pop.set_xlim(0, df['popularity'].quantile(0.95))
-            st.pyplot(fig_pop)
+            budget_range = st.sidebar.slider(
+                "💸 Intervalo de Orçamento (USD)",
+                min_value=min_budget_data,
+                max_value=max_budget_data,
+                value=(min_budget_data, max_budget_data),
+                format="$%.0f"
+            )
+            df_filtered_by_budget = df_filtered_by_genre[
+                (df_filtered_by_genre['budget'] >= budget_range[0]) &
+                (df_filtered_by_genre['budget'] <= budget_range[1])
+            ]
+        
+        # 4. Filtro de Intervalo de Receita
+        df_for_revenue_filter = df_filtered_by_budget.dropna(subset=['revenue']).copy()
+        df_for_revenue_filter['revenue'] = df_for_revenue_filter['revenue'].astype(float)
 
-        st.divider()
-        st.header("Análise de Lucro e Prejuízo")
-        col3, col4 = st.columns(2)
-        with col3:
-            st.subheader("📈 Distribuição de Lucros Positivos")
-            lucros = df[df['profit_percentage'] > 0]
-            max_lucro = int(min(5000, lucros['profit_percentage'].max()))
-            limite = st.slider("Limitar exibição de lucro (%)", 10, max_lucro, value=500, step=50)
-            lucros_filtrados = lucros[lucros['profit_percentage'] < limite]
-            fig_lucros, ax_lucros = plt.subplots()
-            sns.histplot(lucros_filtrados['profit_percentage'], bins=50, kde=True, ax=ax_lucros, color='green')
-            st.pyplot(fig_lucros)
+        df_filtered_by_revenue = df_filtered_by_budget.copy()
+        if not df_for_revenue_filter.empty and df_for_revenue_filter['revenue'].max() > 0:
+            min_revenue_data = float(df_for_revenue_filter['revenue'].min())
+            max_revenue_data = float(df_for_revenue_filter['revenue'].max())
+            
+            revenue_range = st.sidebar.slider(
+                "💰 Intervalo de Receita (USD)",
+                min_value=min_revenue_data,
+                max_value=max_revenue_data,
+                value=(min_revenue_data, max_revenue_data),
+                format="$%.0f"
+            )
+            df_filtered_by_revenue = df_filtered_by_budget[
+                (df_filtered_by_budget['revenue'] >= revenue_range[0]) &
+                (df_filtered_by_budget['revenue'] <= revenue_range[1])
+            ]
 
-            st.subheader("💹 Mediana de Lucro (%) por Gênero")
-            df_lucro = df[df['profit_percentage'] > 0]
-            df_lucro_agrupado = processar_por_genero(df_lucro, lucro=True)
-            fig_lucro_gen, ax_lucro_gen = plt.subplots()
-            sns.barplot(x=df_lucro_agrupado.index, y=df_lucro_agrupado['med_profit'], color='green', ax=ax_lucro_gen)
-            ax_lucro_gen.set_xticklabels(ax_lucro_gen.get_xticklabels(), rotation=45, ha='right')
-            st.pyplot(fig_lucro_gen)
+        # 5. Filtro de Idioma Original
+        # Obter todos os idiomas únicos do DataFrame filtrado até agora
+        all_languages = sorted(df_filtered_by_revenue['original_language'].dropna().unique().tolist())
+        selected_languages = st.sidebar.multiselect(
+            "🗣️ Idioma Original",
+            options=all_languages,
+            default=all_languages # Seleciona todos por padrão
+        )
 
-        with col4:
-            st.subheader("📉 Distribuição de Prejuízos")
-            prejuizos = df[df['profit_percentage'] < 0]
-            fig_prejuizo, ax_prejuizo = plt.subplots()
-            sns.histplot(prejuizos['profit_percentage'], bins=50, kde=True, ax=ax_prejuizo, color='red')
-            st.pyplot(fig_prejuizo)
+        if selected_languages:
+            df_filtered_by_language = df_filtered_by_revenue[
+                df_filtered_by_revenue['original_language'].isin(selected_languages)
+            ]
+        else:
+            df_filtered_by_language = df_filtered_by_revenue.copy() # Se nenhum idioma selecionado, usa o df anterior
 
-            st.subheader("📉 Média de Prejuízo (%) por Gênero")
-            df_prejuizo = df[df['profit_percentage'] < 0]
-            df_prejuizo_agrupado = processar_por_genero(df_prejuizo, lucro=False)
-            fig_prejuizo_gen, ax_prejuizo_gen = plt.subplots()
-            sns.barplot(x=df_prejuizo_agrupado.index, y=-df_prejuizo_agrupado['mean_profit'], color='red', ax=ax_prejuizo_gen)
-            ax_prejuizo_gen.set_xticklabels(ax_prejuizo_gen.get_xticklabels(), rotation=45, ha='right')
-            st.pyplot(fig_prejuizo_gen)
+        # O DataFrame final a ser usado nos gráficos é df_filtered_by_language
+        df_final_filtered = df_filtered_by_language.copy()
 
-        st.divider()
-        st.header("Análise de Correlações")
-        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-        correlation_matrix = df[numeric_cols].corr()
-        fig_corr, ax_corr = plt.subplots(figsize=(10, 8))
-        sns.heatmap(correlation_matrix, annot=True, fmt=".2f", cmap='coolwarm', ax=ax_corr)
-        st.pyplot(fig_corr)
+        # Aviso se o filtro resultar em dados vazios
+        if df_final_filtered.empty:
+            st.warning("Nenhum dado encontrado para os filtros selecionados. Ajuste o intervalo de anos, gêneros, orçamento, receita e/ou idiomas.")
+        
+        # Continuar a análise apenas se df_final_filtered não estiver vazio
+        if not df_final_filtered.empty:
+            with st.expander("🔍 Visualizar Amostra dos Dados Filtrados"):
+                st.dataframe(df_final_filtered.head(10))
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.subheader("💰 Receita vs. Orçamento")
+                fig1, ax1 = plt.subplots()
+                sns.scatterplot(data=df_final_filtered[df_final_filtered['budget'] > 1000], x='budget', y='revenue', alpha=0.4, ax=ax1, color='royalblue')
+                ax1.set_xlabel('Orçamento (USD)')
+                ax1.set_ylabel('Receita (USD)')
+                st.pyplot(fig1)
+
+                st.subheader("🎭 Top 10 Gêneros por Número de Filmes")
+                genre_counts = Counter()
+                for genre_str in df_final_filtered['genres'].dropna():
+                    genres_list = [g.strip() for g in genre_str.split(',')]
+                    genre_counts.update(genres_list)
+                top_genres = genre_counts.most_common(10)
+                genres_names, genres_vals = zip(*top_genres)
+                fig3, ax3 = plt.subplots()
+                sns.barplot(x=list(genres_vals), y=traduzir_generos(list(genres_names)), palette='mako', ax=ax3)
+                ax3.set_xlabel("Número de Filmes")
+                ax3.set_ylabel("Gênero")
+                st.pyplot(fig3)
+                
+                st.subheader("⏱️ Distribuição da Duração dos Filmes (Runtime)")
+                fig_runtime, ax_runtime = plt.subplots()
+                sns.histplot(df_final_filtered['runtime'].dropna(), bins=50, kde=True, ax=ax_runtime, color='purple')
+                ax_runtime.set_xlabel("Duração (minutos)")
+                ax_runtime.set_ylabel("Frequência")
+                st.pyplot(fig_runtime)
+
+            with col2:
+                st.subheader("🌍 Nota Média por Idioma (Top 10)")
+                valid_langs = df_final_filtered['original_language'].dropna()
+                valid_langs = valid_langs[valid_langs.str.isalpha()]
+                lang_counts = valid_langs.value_counts()
+                frequent_langs = lang_counts[lang_counts > 20].index
+                filtered_df_lang = df_final_filtered[df_final_filtered['original_language'].isin(frequent_langs)]
+                language_ratings = filtered_df_lang.groupby('original_language')['vote_average'].mean().sort_values(ascending=False).head(10)
+                fig2, ax2 = plt.subplots()
+                sns.barplot(x=language_ratings.values, y=language_ratings.index, palette='viridis', ax=ax2)
+                ax2.set_xlabel("Nota Média")
+                ax2.set_ylabel("Idioma")
+                st.pyplot(fig2)
+
+                st.subheader("💎 Top 10 'Joias Escondidas'")
+                mediana_pop = df_final_filtered['popularity'].median()
+                undervalued = df_final_filtered[(df_final_filtered['popularity'] < mediana_pop) & (df_final_filtered['vote_average'] >= 7.5) & (df_final_filtered['vote_count'] >= 100)]
+                top_pearl = undervalued.sort_values(['vote_average', 'vote_count'], ascending=[False, False]).head(10)
+                fig6, ax6 = plt.subplots()
+                sns.barplot(data=top_pearl, x='vote_average', y='title', palette='magma', ax=ax6)
+                ax6.set_xlabel("Média de Votos")
+                ax6.set_ylabel("Título do Filme")
+                st.pyplot(fig6)
+                
+                st.subheader("⭐ Popularidade vs. Nota Média")
+                fig_pop, ax_pop = plt.subplots()
+                sns.scatterplot(data=df_final_filtered, x='popularity', y='vote_average', alpha=0.3, ax=ax_pop, color='gold')
+                ax_pop.set_xlabel("Popularidade")
+                ax_pop.set_ylabel("Nota Média")
+                ax_pop.set_xlim(0, df_final_filtered['popularity'].quantile(0.95))
+                st.pyplot(fig_pop)
+
+            st.divider()
+            st.header("Análise de Lucro e Prejuízo")
+            col3, col4 = st.columns(2)
+            with col3:
+                st.subheader("📈 Distribuição de Lucros Positivos")
+                lucros = df_final_filtered[df_final_filtered['profit_percentage'] > 0]
+                max_lucro = int(min(5000, lucros['profit_percentage'].max())) if not lucros.empty else 500
+                limite = st.slider("Limitar exibição de lucro (%)", 10, max_lucro, value=500, step=50)
+                lucros_filtrados = lucros[lucros['profit_percentage'] < limite]
+                fig_lucros, ax_lucros = plt.subplots()
+                sns.histplot(lucros_filtrados['profit_percentage'], bins=50, kde=True, ax=ax_lucros, color='green')
+                st.pyplot(fig_lucros)
+
+                st.subheader("💹 Mediana de Lucro (%) por Gênero")
+                df_lucro = df_final_filtered[df_final_filtered['profit_percentage'] > 0]
+                df_lucro_agrupado = processar_por_genero(df_lucro, lucro=True)
+                fig_lucro_gen, ax_lucro_gen = plt.subplots()
+                sns.barplot(x=df_lucro_agrupado.index, y=df_lucro_agrupado['med_profit'], color='green', ax=ax_lucro_gen)
+                ax_lucro_gen.set_xticklabels(ax_lucro_gen.get_xticklabels(), rotation=45, ha='right')
+                st.pyplot(fig_lucro_gen)
+
+            with col4:
+                st.subheader("📉 Distribuição de Prejuízos")
+                prejuizos = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
+                fig_prejuizo, ax_prejuizo = plt.subplots()
+                sns.histplot(prejuizos['profit_percentage'], bins=50, kde=True, ax=ax_prejuizo, color='red')
+                st.pyplot(fig_prejuizo)
+
+                st.subheader("📉 Média de Prejuízo (%) por Gênero")
+                df_prejuizo = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
+                df_prejuizo_agrupado = processar_por_genero(df_prejuizo, lucro=False)
+                fig_prejuizo_gen, ax_prejuizo_gen = plt.subplots()
+                sns.barplot(x=df_prejuizo_agrupado.index, y=-df_prejuizo_agrupado['mean_profit'], color='red', ax=ax_prejuizo_gen)
+                ax_prejuizo_gen.set_xticklabels(ax_prejuizo_gen.get_xticklabels(), rotation=45, ha='right')
+                st.pyplot(fig_prejuizo_gen)
+
+            st.divider()
+            st.header("Análise de Correlações")
+            numeric_cols = df_final_filtered.select_dtypes(include=np.number).columns.tolist()
+            correlation_matrix = df_final_filtered[numeric_cols].corr()
+            fig_corr, ax_corr = plt.subplots(figsize=(10, 8))
+            sns.heatmap(correlation_matrix, annot=True, fmt=".2f", cmap='coolwarm', ax=ax_corr)
+            st.pyplot(fig_corr)
 
 # ==============================================================================
 # === ABA 2: MACHINE LEARNING ==================================================
