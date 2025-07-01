@@ -1,0 +1,5 @@
+.venv
+modelos/random_forest_revenue_k=25.pkl
+full_model_pipeline.pkl
+cosine_sim.pkl
+df_rec.csv
