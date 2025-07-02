@@ -51,7 +51,6 @@ def load_ml_artifacts():
         return None
 
 # --- Mapeamento de Códigos de Idioma para Nomes em Português ---
-# Baseado em ISO 639 da Wikipédia em Português
 LANGUAGE_CODES_TO_PORTUGUESE = {
     'en': 'Inglês',
     'fr': 'Francês',
