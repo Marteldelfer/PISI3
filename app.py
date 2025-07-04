@@ -81,39 +81,30 @@ REVERSE_TRADUCOES_GENEROS = {v: k for k, v in TRADUCOES_GENEROS.items()}
 def traduzir_generos(lista_generos):
     return [TRADUCOES_GENEROS.get(genero, genero) for genero in lista_generos]
 
-def agrupar_outros(df_agrupado, top_n=8):
-    if len(df_agrupado) <= top_n:
-        return df_agrupado
-    top = df_agrupado.sort_values('count', ascending=False).head(top_n)
-    outros_df = df_agrupado.drop(top.index)
-    if not outros_df.empty:
-        if 'mean_profit' in outros_df.columns:
-            mean_ponderada = np.average(outros_df['mean_profit'], weights=outros_df['count'])
-            count_soma = outros_df['count'].sum()
-            outros_row = pd.DataFrame([{'mean_profit': mean_ponderada, 'count': count_soma}], index=['Outros'])
-            top = pd.concat([top, outros_row])
-        elif 'med_profit' in outros_df.columns:
-            mediana_outros = outros_df['med_profit'].median()
-            count_soma = outros_df['count'].sum()
-            outros_row = pd.DataFrame([{'med_profit': mediana_outros, 'count': count_soma}], index=['Outros'])
-            top = pd.concat([top, outros_row])
-    return top
+def prepare_data_for_boxplot(df, top_n=10):
+    """
+    Prepara os dados para o boxplot de lucro/prejuízo por gênero.
+    - 'Explode' os gêneros para ter uma linha por gênero por filme.
+    - Identifica os N gêneros mais frequentes.
+    - Filtra o DataFrame para incluir apenas esses top N gêneros.
+    - Traduz os nomes dos gêneros para português.
+    """
+    # Garante que a coluna de gêneros não é nula e a 'explode'
+    df_exploded = df.dropna(subset=['genres']).copy()
+    df_exploded['genres'] = df_exploded['genres'].str.split(', ')
+    df_exploded = df_exploded.explode('genres')
 
-def processar_por_genero(df_filtrado, lucro=True):
-    df_filtrado = df_filtrado.copy()
-    df_filtrado = df_filtrado[df_filtrado['genres'].notna()]
-    df_filtrado['genres_list'] = df_filtrado['genres'].apply(lambda x: [g.strip() for g in x.split(',')])
-    df_exploded = df_filtrado.explode('genres_list')
-    if lucro:
-        df_exploded = df_exploded[df_exploded['profit_percentage'] <= 50000]
-        df_agrupado = df_exploded.groupby('genres_list')['profit_percentage'].agg(['median', 'count']).rename(columns={'median': 'med_profit'})
-        df_agrupado['med_profit'] = df_agrupado['med_profit'].clip(upper=500)
-    else:
-        df_agrupado = df_exploded.groupby('genres_list')['profit_percentage'].agg(['mean', 'count']).rename(columns={'mean': 'mean_profit'})
-        df_agrupado['mean_profit'] = df_agrupado['mean_profit'].clip(lower=-100)
-    df_agrupado_final = agrupar_outros(df_agrupado, top_n=8)
-    df_agrupado_final.index = traduzir_generos(df_agrupado_final.index.to_list())
-    return df_agrupado_final
+    # Encontra os top N gêneros mais comuns
+    top_genres = df_exploded['genres'].value_counts().nlargest(top_n).index
+
+    # Filtra o DataFrame para conter apenas os filmes desses gêneros
+    df_filtered = df_exploded[df_exploded['genres'].isin(top_genres)]
+    
+    # Traduz os nomes dos gêneros para a plotagem
+    df_filtered['genres_translated'] = df_filtered['genres'].map(TRADUCOES_GENEROS)
+    
+    return df_filtered
+
 
 # Carregamento dos dados
 df = load_base_data()
@@ -129,8 +120,7 @@ tab1, tab2 = st.tabs(["📊 Análise Exploratória", "🤖 Modelos de Machine Le
 @st.fragment
 def render_main_plots(df_final_filtered):
     """
-    Este fragmento renderiza TODOS os gráficos, EXCETO o de distribuição de lucros.
-    Ele é atualizado apenas quando os filtros da SIDEBAR mudam.
+    Este fragmento renderiza os gráficos principais que dependem apenas dos filtros da sidebar.
     """
     st.header("📄 Análise Exploratória dos Dados")
     st.write(f"**Resultados para a seleção:** `{df_final_filtered.shape[0]}` filmes encontrados.")
@@ -221,7 +211,6 @@ def render_profit_distribution_plot(df_final_filtered):
     st.subheader("📈 Distribuição de Lucros Positivos")
     lucros = df_final_filtered[df_final_filtered['profit_percentage'] > 0]
     
-    # O slider agora vive DENTRO do seu fragmento dedicado
     profit_limit = st.slider("Limitar exibição de lucro (%)", 10, 5000, 500, 50)
     
     lucros_filtrados = lucros[lucros['profit_percentage'] < profit_limit]
@@ -234,42 +223,55 @@ def render_profit_distribution_plot(df_final_filtered):
 
 
 @st.fragment
-def render_remaining_plots(df_final_filtered):
+def render_profit_loss_boxplots(df_final_filtered):
     """
-    Este fragmento renderiza os gráficos restantes que dependem apenas dos filtros da sidebar.
+    Este fragmento renderiza os novos boxplots para lucro e prejuízo por gênero,
+    e os gráficos restantes.
     """
-    FIG_SIZE = (6, 4)
+    FIG_SIZE = (8, 5) # Um pouco maior para acomodar melhor os boxplots
     FIG_DPI = 75
 
-    st.subheader("💹 Mediana de Lucro (%) por Gênero")
-    df_lucro = df_final_filtered[df_final_filtered['profit_percentage'] > 0]
+    # --- NOVO: Gráfico de Boxplot para Lucro por Gênero ---
+    st.subheader("📊 Distribuição de Lucro Percentual por Gênero")
+    df_lucro = df_final_filtered[df_final_filtered['profit_percentage'].between(0.01, 5000)] # Filtro para lucros razoáveis
     if not df_lucro.empty:
-        df_lucro_agrupado = processar_por_genero(df_lucro, lucro=True)
+        df_lucro_box = prepare_data_for_boxplot(df_lucro)
+        order = df_lucro_box.groupby('genres_translated')['profit_percentage'].median().sort_values(ascending=False).index
+        
         fig_lucro_gen, ax_lucro_gen = plt.subplots(figsize=FIG_SIZE, dpi=FIG_DPI)
-        sns.barplot(x=df_lucro_agrupado.index, y=df_lucro_agrupado['med_profit'], color='green', ax=ax_lucro_gen)
-        ax_lucro_gen.set_xlabel("Gênero")
-        ax_lucro_gen.set_ylabel("Mediana do Lucro (%)")
-        ax_lucro_gen.tick_params(axis='x', rotation=45)
+        sns.boxplot(data=df_lucro_box, x='profit_percentage', y='genres_translated', order=order, ax=ax_lucro_gen, color='lightgreen', showfliers=False)
+        ax_lucro_gen.set_xlabel("Lucro (%)")
+        ax_lucro_gen.set_ylabel("Gênero")
+        ax_lucro_gen.set_title("Boxplot de Lucro por Gênero (Top 10 mais Frequentes)")
         st.pyplot(fig_lucro_gen, use_container_width=False)
+    else:
+        st.write("Não há dados de lucro para exibir com os filtros atuais.")
+
+
+    # --- NOVO: Gráfico de Boxplot para Prejuízo por Gênero ---
+    st.subheader("📊 Distribuição de Prejuízo Percentual por Gênero")
+    df_prejuizo = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
+    if not df_prejuizo.empty:
+        df_prejuizo_box = prepare_data_for_boxplot(df_prejuizo)
+        order = df_prejuizo_box.groupby('genres_translated')['profit_percentage'].median().sort_values(ascending=True).index
+
+        fig_prejuizo_gen, ax_prejuizo_gen = plt.subplots(figsize=FIG_SIZE, dpi=FIG_DPI)
+        sns.boxplot(data=df_prejuizo_box, x='profit_percentage', y='genres_translated', order=order, ax=ax_prejuizo_gen, color='lightcoral', showfliers=False)
+        ax_prejuizo_gen.set_xlabel("Prejuízo (%)")
+        ax_prejuizo_gen.set_ylabel("Gênero")
+        ax_prejuizo_gen.set_title("Boxplot de Prejuízo por Gênero (Top 10 mais Frequentes)")
+        st.pyplot(fig_prejuizo_gen, use_container_width=False)
+    else:
+        st.write("Não há dados de prejuízo para exibir com os filtros atuais.")
+
 
     st.subheader("📉 Distribuição de Prejuízos")
     prejuizos = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
-    fig_prejuizo, ax_prejuizo = plt.subplots(figsize=FIG_SIZE, dpi=FIG_DPI)
+    fig_prejuizo, ax_prejuizo = plt.subplots(figsize=(6, 4), dpi=75)
     sns.histplot(prejuizos['profit_percentage'], bins=50, kde=True, ax=ax_prejuizo, color='red')
-    ax_prejuizo.set_xlabel("Porcentagem de Lucro")
+    ax_prejuizo.set_xlabel("Porcentagem de Prejuízo")
     ax_prejuizo.set_ylabel("Quantidade")
     st.pyplot(fig_prejuizo, use_container_width=False)
-
-    st.subheader("📉 Média de Prejuízo (%) por Gênero")
-    df_prejuizo = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
-    if not df_prejuizo.empty:
-        df_prejuizo_agrupado = processar_por_genero(df_prejuizo, lucro=False)
-        fig_prejuizo_gen, ax_prejuizo_gen = plt.subplots(figsize=FIG_SIZE, dpi=FIG_DPI)
-        sns.barplot(x=df_prejuizo_agrupado.index, y=-df_prejuizo_agrupado['mean_profit'], color='red', ax=ax_prejuizo_gen)
-        ax_prejuizo_gen.set_xlabel("Gênero")
-        ax_prejuizo_gen.set_ylabel("Média de Prejuízo (%)")
-        ax_prejuizo_gen.tick_params(axis='x', rotation=45)
-        st.pyplot(fig_prejuizo_gen, use_container_width=False)
 
     st.divider()
     st.header("Análise de Correlações")
@@ -284,7 +286,7 @@ def render_remaining_plots(df_final_filtered):
     correlation_matrix = df_final_filtered[cols_to_corr].corr()
     correlation_matrix.rename(columns=traducao_colunas, index=traducao_colunas, inplace=True)
     
-    fig_corr, ax_corr = plt.subplots(figsize=FIG_SIZE, dpi=FIG_DPI)
+    fig_corr, ax_corr = plt.subplots(figsize=(6, 4), dpi=75)
     sns.heatmap(correlation_matrix, annot=True, fmt=".2f", cmap='coolwarm', ax=ax_corr, vmin=-1, vmax=1, annot_kws={"size": 6})
     plt.xticks(rotation=45, ha='right')
     plt.yticks(rotation=0)
@@ -296,27 +298,22 @@ with tab1:
         # --- Controles Ficam na Sidebar ---
         st.sidebar.header("⚙️ Filtros de Análise")
 
-        # Filtro de Ano
         df_for_filters = df.dropna(subset=['release_year']).copy()
         df_for_filters['release_year'] = df_for_filters['release_year'].astype(int)
         min_year, max_year = int(df_for_filters['release_year'].min()), int(df_for_filters['release_year'].max())
         year_range = st.sidebar.slider("📅 Intervalo de Anos", min_year, max_year, (min_year, max_year))
 
-        # Filtro de Gênero
         all_genres = sorted(list(set([g.strip() for s in df['genres'].dropna() for g in s.split(',')])))
         all_genres_translated = traduzir_generos(all_genres)
         selected_genres_translated = st.sidebar.multiselect("🎭 Gêneros", all_genres_translated, default=all_genres_translated)
         selected_genres_english = [REVERSE_TRADUCOES_GENEROS.get(g, g) for g in selected_genres_translated]
 
-        # Filtro de Orçamento
         min_budget, max_budget = float(df['budget'].min()), float(df['budget'].max())
         budget_range = st.sidebar.slider("💸 Orçamento (USD)", min_budget, max_budget, (min_budget, max_budget), format="$%.0f")
 
-        # Filtro de Receita
         min_revenue, max_revenue = float(df['revenue'].min()), float(df['revenue'].max())
         revenue_range = st.sidebar.slider("💰 Receita (USD)", min_revenue, max_revenue, (min_revenue, max_revenue), format="$%.0f")
 
-        # Filtro de Idioma
         all_langs = sorted(df['original_language'].dropna().unique().tolist())
         lang_options = [f"{LANGUAGE_CODES_TO_PORTUGUESE.get(c, 'Desconhecido')} ({c})" for c in all_langs]
         selected_langs_display = st.sidebar.multiselect("🗣️ Idioma Original", lang_options, default=lang_options)
@@ -338,7 +335,7 @@ with tab1:
         # --- Chamada dos Fragmentos ---
         render_main_plots(df_final_filtered)
         render_profit_distribution_plot(df_final_filtered)
-        render_remaining_plots(df_final_filtered)
+        render_profit_loss_boxplots(df_final_filtered)
 
     else:
         st.error("Não foi possível carregar os dados para a análise.")
