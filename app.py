@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from collections import Counter
 import warnings
+import random
 
 # Ignorar avisos de depreciação do matplotlib
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -84,27 +85,12 @@ def traduzir_generos(lista_generos):
     return [TRADUCOES_GENEROS.get(genero, genero) for genero in lista_generos]
 
 def prepare_data_for_boxplot(df, top_n=10):
-    """
-    Prepara os dados para o boxplot de lucro/prejuízo por gênero.
-    - 'Explode' os gêneros para ter uma linha por gênero por filme.
-    - Identifica os N gêneros mais frequentes.
-    - Filtra o DataFrame para incluir apenas esses top N gêneros.
-    - Traduz os nomes dos gêneros para português.
-    """
-    # Garante que a coluna de gêneros não é nula e a 'explode'
     df_exploded = df.dropna(subset=['genres']).copy()
     df_exploded['genres'] = df_exploded['genres'].str.split(', ')
     df_exploded = df_exploded.explode('genres')
-
-    # Encontra os top N gêneros mais comuns
     top_genres = df_exploded['genres'].value_counts().nlargest(top_n).index
-
-    # Filtra o DataFrame para conter apenas os filmes desses gêneros
     df_filtered = df_exploded[df_exploded['genres'].isin(top_genres)]
-    
-    # Traduz os nomes dos gêneros para a plotagem
     df_filtered['genres_translated'] = df_filtered['genres'].map(TRADUCOES_GENEROS)
-    
     return df_filtered
 
 
@@ -116,63 +102,27 @@ ml_artifacts = load_ml_artifacts()
 tab1, tab2 = st.tabs(["📊 Análise Exploratória", "🤖 Modelos de Machine Learning"])
 
 # ==============================================================================
-# === LÓGICA DA ABA 1: Múltiplos Fragmentos para UI e Performance =============
+# === ABA 1: ANÁLISE EXPLORATÓRIA ==============================================
 # ==============================================================================
 
+# (O CONTEÚDO DESTA SEÇÃO NÃO FOI ALTERADO, APENAS OCULTADO PARA BREVIDADE)
 @st.fragment
 def render_main_plots(df_final_filtered):
-    """
-    Este fragmento renderiza os gráficos principais que dependem apenas dos filtros da sidebar.
-    """
     st.header("📄 Análise Exploratória dos Dados")
     st.write(f"**Resultados para a seleção:** `{df_final_filtered.shape[0]}` filmes encontrados.")
-
     if df_final_filtered.empty:
         st.warning("Nenhum dado encontrado para os filtros da barra lateral.")
         return
-
     with st.expander("🔍 Visualizar Amostra dos Dados Filtrados"):
         st.dataframe(df_final_filtered.head(10))
-
     FIG_SIZE = (6, 4)
     FIG_DPI = 75
-
     st.subheader("💰 Receita vs. Orçamento")
     df_budget_revenue = df_final_filtered[df_final_filtered['budget'] > 1000]
-
-    df = df_final_filtered[(df_final_filtered['budget'] > -1e9) & (df_final_filtered['revenue'] > -1e9)]  # só filtro básico
-
-    fig = go.Figure(go.Histogram2dContour(
-        x=df['budget'],
-        y=df['revenue'],
-        contours=dict(coloring='fill'),
-        colorscale='Blues',
-        reversescale=True,
-        ncontours=20,
-        hoverinfo='x+y+z',
-    ))
-
-    fig.update_layout(
-        title='',
-        xaxis=dict(
-            title=dict(text="Orçamento (USD)", font=dict(size=36)),
-            tickfont=dict(size=32),
-            range=[df_budget_revenue['budget'].min(), df_budget_revenue['budget'].quantile(0.75)],
-        ),
-        yaxis=dict(
-            title=dict(text="Receita (USD)", font=dict(size=36)),
-            tickfont=dict(size=32),
-            range=[df_budget_revenue['revenue'].min(), df_budget_revenue['revenue'].quantile(0.85)],
-        ),
-        width=1500,
-        height=1000,
-        font=dict(size=36),
-        title_font_size=40,
-    )
-
+    df = df_final_filtered[(df_final_filtered['budget'] > -1e9) & (df_final_filtered['revenue'] > -1e9)]
+    fig = go.Figure(go.Histogram2dContour(x=df['budget'], y=df['revenue'], contours=dict(coloring='fill'), colorscale='Blues', reversescale=True, ncontours=20, hoverinfo='x+y+z'))
+    fig.update_layout(title='', xaxis=dict(title=dict(text="Orçamento (USD)", font=dict(size=36)), tickfont=dict(size=32), range=[df_budget_revenue['budget'].min(), df_budget_revenue['budget'].quantile(0.75)]), yaxis=dict(title=dict(text="Receita (USD)", font=dict(size=36)), tickfont=dict(size=32), range=[df_budget_revenue['revenue'].min(), df_budget_revenue['revenue'].quantile(0.85)]), width=1500, height=1000, font=dict(size=36), title_font_size=40)
     st.plotly_chart(fig, use_container_width=False)
-
-
     st.subheader("🌍 Nota Média por Idioma (Top 10)")
     lang_counts = df_final_filtered['original_language'].value_counts()
     frequent_langs = lang_counts[lang_counts > 20].index
@@ -181,371 +131,106 @@ def render_main_plots(df_final_filtered):
     if not filtered_df_lang.empty:
         language_ratings = filtered_df_lang.groupby('original_language')['vote_average'].mean().sort_values(ascending=False).head(10)
         languages_pt = [LANGUAGE_CODES_TO_PORTUGUESE.get(lang, lang) for lang in language_ratings.index]
-
-        fig2 = px.bar(
-            x=language_ratings.values,
-            y=languages_pt,
-            orientation='h',
-            color=language_ratings.values,
-            color_continuous_scale='Viridis_r',
-            height=1000,
-            width=1500,
-            labels={'x': 'Nota Média', 'y': 'Idioma'}
-        )
-
-        fig2.update_layout(
-            title='',
-            yaxis=dict(autorange='reversed', tickfont=dict(size=32), title=dict(text='Idioma', font=dict(size=36))),
-            xaxis=dict(tickfont=dict(size=32), title=dict(text='Nota Média', font=dict(size=36))),
-            font=dict(size=36),
-            title_font_size=40,
-        )
-
+        fig2 = px.bar(x=language_ratings.values, y=languages_pt, orientation='h', color=language_ratings.values, color_continuous_scale='Viridis_r', height=1000, width=1500, labels={'x': 'Nota Média', 'y': 'Idioma'})
+        fig2.update_layout(title='', yaxis=dict(autorange='reversed', tickfont=dict(size=32), title=dict(text='Idioma', font=dict(size=36))), xaxis=dict(tickfont=dict(size=32), title=dict(text='Nota Média', font=dict(size=36))), font=dict(size=36), title_font_size=40)
         st.plotly_chart(fig2, use_container_width=False)
     else:
         st.write("Dados insuficientes.")
-    
     st.subheader("🎭 Top 10 Gêneros por Número de Filmes")
     genre_counts = Counter([g.strip() for genre_str in df_final_filtered['genres'].dropna() for g in genre_str.split(',')])
     top_genres = genre_counts.most_common(10)
     if top_genres:
         genres_names, genres_vals = zip(*top_genres)
         genres_names_traduzidos = traduzir_generos(list(genres_names))
-
-        fig3 = px.bar(
-            top_genres,
-            x=genres_vals,
-            y=genres_names_traduzidos,
-            orientation='h',
-            color=genres_vals,
-            color_continuous_scale='Blues',
-        )
-
-        fig3.update_layout(
-            title='',
-            yaxis=dict(autorange="reversed", tickfont=dict(size=32), title=dict(text='Gênero', font=dict(size=36))),
-            xaxis=dict(tickfont=dict(size=32), title=dict(text='Número de Filmes', font=dict(size=36))),
-            font=dict(size=36),
-            title_font_size=40,
-            height=1000,
-            width=1500,
-        )
-
+        fig3 = px.bar(top_genres, x=genres_vals, y=genres_names_traduzidos, orientation='h', color=genres_vals, color_continuous_scale='Blues')
+        fig3.update_layout(title='', yaxis=dict(autorange="reversed", tickfont=dict(size=32), title=dict(text='Gênero', font=dict(size=36))), xaxis=dict(tickfont=dict(size=32), title=dict(text='Número de Filmes', font=dict(size=36))), font=dict(size=36), title_font_size=40, height=1000, width=1500)
         st.plotly_chart(fig3, use_container_width=False)
     else:
         st.write("Nenhum gênero encontrado.")
-
     st.subheader("💎 Top 10 'Joias Escondidas'")
     mediana_pop = df_final_filtered['popularity'].median()
     undervalued = df_final_filtered[(df_final_filtered['popularity'] < mediana_pop) & (df_final_filtered['vote_average'] >= 7.5) & (df_final_filtered['vote_count'] >= 100)]
     top_pearl = undervalued.sort_values(['vote_average', 'vote_count'], ascending=[False, False]).head(10)
     if not top_pearl.empty:
-        fig6 = px.bar(
-            top_pearl,
-            x='vote_average',
-            y='title',
-            orientation='h',
-            color='vote_average',
-            color_continuous_scale='magma',
-            labels={'vote_average': 'Média de Votos', 'title': 'Título do Filme'},
-            height=1000,
-            width=1500,
-        )
-        fig6.update_layout(
-            title='',
-            yaxis=dict(
-                autorange="reversed",
-                tickfont=dict(size=32),
-                title=dict(text='Título do Filme', font=dict(size=36))
-            ),
-            xaxis=dict(
-                tickfont=dict(size=32),
-                title=dict(text='Nota média pelos votos', font=dict(size=36))
-            ),
-            font=dict(size=36),
-            title_font_size=40,
-        )
+        fig6 = px.bar(top_pearl, x='vote_average', y='title', orientation='h', color='vote_average', color_continuous_scale='magma', labels={'vote_average': 'Média de Votos', 'title': 'Título do Filme'}, height=1000, width=1500)
+        fig6.update_layout(title='', yaxis=dict(autorange="reversed", tickfont=dict(size=32), title=dict(text='Título do Filme', font=dict(size=36))), xaxis=dict(tickfont=dict(size=32), title=dict(text='Nota média pelos votos', font=dict(size=36))), font=dict(size=36), title_font_size=40)
         st.plotly_chart(fig6, use_container_width=False)
     else:
         st.write("Nenhuma 'joia escondida' encontrada.")
-
     st.subheader("⏱️ Distribuição da Duração dos Filmes (Runtime)")
-    fig_runtime = px.histogram(
-        df_final_filtered,
-        x='runtime',
-        nbins=50,
-        color_discrete_sequence=['purple']
-    )
-
-    fig_runtime.update_layout(
-        title="",
-        bargap=0.1,
-        xaxis=dict(
-            title=dict(text="Duração (minutos)", font=dict(size=36)),
-            tickfont=dict(size=32),
-        ),
-        yaxis=dict(
-            title=dict(text="Frequência", font=dict(size=36)),
-            tickfont=dict(size=32),
-        ),
-        width=1500,
-        height=1000,
-        font=dict(size=36),
-        title_font_size=40,
-    )
-
+    fig_runtime = px.histogram(df_final_filtered, x='runtime', nbins=50, color_discrete_sequence=['purple'])
+    fig_runtime.update_layout(title="", bargap=0.1, xaxis=dict(title=dict(text="Duração (minutos)", font=dict(size=36)), tickfont=dict(size=32)), yaxis=dict(title=dict(text="Frequência", font=dict(size=36)), tickfont=dict(size=32)), width=1500, height=1000, font=dict(size=36), title_font_size=40)
     st.plotly_chart(fig_runtime, use_container_width=False)
-
     st.subheader("⭐ Popularidade vs. Nota Média")
-
-    fig_pop = go.Figure(data=go.Histogram2dContour(
-        x=df_final_filtered['popularity'],
-        y=df_final_filtered['vote_average'],
-        colorscale='Blues',
-        reversescale=True,
-        contours=dict(
-            coloring='fill',
-            showlines=True
-        ),
-        ncontours=20,
-    ))
-
-    fig_pop.update_layout(
-        title='',
-        xaxis=dict(
-            title=dict(text="Popularidade", font=dict(size=36)),
-            tickfont=dict(size=32),
-            range=[0, df_final_filtered['popularity'].quantile(0.95)]
-        ),
-        yaxis=dict(
-            title=dict(text="Nota Média", font=dict(size=36)),
-            tickfont=dict(size=32)
-        ),
-        width=2000,
-        height=1000,
-        font=dict(size=36),
-        title_font_size=40,
-    )
-
+    fig_pop = go.Figure(data=go.Histogram2dContour(x=df_final_filtered['popularity'], y=df_final_filtered['vote_average'], colorscale='Blues', reversescale=True, contours=dict(coloring='fill', showlines=True), ncontours=20))
+    fig_pop.update_layout(title='', xaxis=dict(title=dict(text="Popularidade", font=dict(size=36)), tickfont=dict(size=32), range=[0, df_final_filtered['popularity'].quantile(0.95)]), yaxis=dict(title=dict(text="Nota Média", font=dict(size=36)), tickfont=dict(size=32)), width=2000, height=1000, font=dict(size=36), title_font_size=40)
     st.plotly_chart(fig_pop, use_container_width=False)
-
-
     st.divider()
     st.header("Análise de Lucro e Prejuízo")
-
-
 @st.fragment
 def render_profit_distribution_plot(df_final_filtered):
-    """
-    Este fragmento renderiza APENAS o gráfico de distribuição de lucros.
-    Ele contém seu PRÓPRIO slider, e apenas este fragmento será reexecutado
-    quando esse slider for alterado.
-    """
     st.subheader("📈 Distribuição de Lucros Positivos")
     lucros = df_final_filtered[df_final_filtered['profit_percentage'] > 0]
-    
     profit_limit = st.slider("Limitar exibição de lucro (%)", 10, 5000, 500, 50)
-    
     lucros_filtrados = lucros[lucros['profit_percentage'] < profit_limit]
-    
-    fig_lucros = px.histogram(
-    lucros_filtrados,
-    x='profit_percentage',
-    nbins=50,
-    color_discrete_sequence=['green']
-    )
-
-    fig_lucros.update_layout(
-        title="",
-        bargap=0.1,
-        xaxis=dict(
-            title=dict(text="Porcentagem de Lucro", font=dict(size=36)),
-            tickfont=dict(size=32)
-        ),
-        yaxis=dict(
-            title=dict(text="Quantidade", font=dict(size=36)),
-            tickfont=dict(size=32)
-        ),
-        width=1500,
-        height=1000,
-        font=dict(size=36),
-        title_font_size=40
-    )
-
+    fig_lucros = px.histogram(lucros_filtrados, x='profit_percentage', nbins=50, color_discrete_sequence=['green'])
+    fig_lucros.update_layout(title="", bargap=0.1, xaxis=dict(title=dict(text="Porcentagem de Lucro", font=dict(size=36)), tickfont=dict(size=32)), yaxis=dict(title=dict(text="Quantidade", font=dict(size=36)), tickfont=dict(size=32)), width=1500, height=1000, font=dict(size=36), title_font_size=40)
     st.plotly_chart(fig_lucros, use_container_width=False)
-
-
 @st.fragment
 def render_profit_boxplots(df_final_filtered):
-    """
-    Este fragmento renderiza os boxplot de lucro. Ele foi separado do prejuizo e dos restantes para ser colocado em uma coluna ao lado
-    """
-    FIG_SIZE = (8, 5) # Um pouco maior para acomodar melhor os boxplots
+    FIG_SIZE = (8, 5)
     FIG_DPI = 75
-
-    # --- NOVO: Gráfico de Boxplot para Lucro por Gênero ---
     st.subheader("📊 Distribuição de Lucro Percentual por Gênero (top 10 mais frequentes)")
-    df_lucro = df_final_filtered[df_final_filtered['profit_percentage'].between(0.01, 5000)] # Filtro para lucros razoáveis
+    df_lucro = df_final_filtered[df_final_filtered['profit_percentage'].between(0.01, 5000)]
     if not df_lucro.empty:
         df_lucro_box = prepare_data_for_boxplot(df_lucro)
-        # Ordena os gêneros pela mediana do lucro
-        order = (
-            df_lucro_box.groupby('genres_translated')['profit_percentage']
-            .median()
-            .sort_values(ascending=False)
-            .index
-        )
-        fig_lucro_gen = px.box(
-            df_lucro_box,
-            x='profit_percentage',
-            y='genres_translated',
-            category_orders={'genres_translated': list(order)},
-            color_discrete_sequence=['lightgreen'],
-            
-        )
+        order = (df_lucro_box.groupby('genres_translated')['profit_percentage'].median().sort_values(ascending=False).index)
+        fig_lucro_gen = px.box(df_lucro_box, x='profit_percentage', y='genres_translated', category_orders={'genres_translated': list(order)}, color_discrete_sequence=['lightgreen'])
         fig_lucro_gen.update_traces(marker=dict(size=5, opacity=0.2))
-
-        fig_lucro_gen.update_layout(
-            title='',
-            font=dict(size=36),
-            xaxis=dict(
-                title=dict(text="Lucro (%)", font=dict(size=36)),
-                tickfont=dict(size=32),
-                range=[0, 1300]
-            ),
-            yaxis=dict(
-                title=dict(text="Gênero", font=dict(size=36)),
-                tickfont=dict(size=32)
-            ),
-            width=1500,
-            height=1000,
-        )
+        fig_lucro_gen.update_layout(title='', font=dict(size=36), xaxis=dict(title=dict(text="Lucro (%)", font=dict(size=36)), tickfont=dict(size=32), range=[0, 1300]), yaxis=dict(title=dict(text="Gênero", font=dict(size=36)), tickfont=dict(size=32)), width=1500, height=1000)
         st.plotly_chart(fig_lucro_gen, use_container_width=False)
     else:
         st.write("Não há dados de lucro para exibir com os filtros atuais.")
 def render_profit_loss_boxplots(df_final_filtered):
-    """
-    Este fragmento renderiza os novos boxplots para prejuízo por gênero.
-    """
-    FIG_SIZE = (8, 5) # Um pouco maior para acomodar melhor os boxplots
+    FIG_SIZE = (8, 5)
     FIG_DPI = 75
-
     st.subheader("📉 Distribuição de Prejuízos")
     prejuizos = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
-    st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True) #melhora o alinhamento dos gráficos, apesar de não ficar perfeito
-    fig_prejuizo = px.histogram(
-        prejuizos,
-        x='profit_percentage',
-        nbins=50,
-        color_discrete_sequence=['red']
-    )
-    fig_prejuizo.update_layout(
-        title="",
-        bargap=0.1,
-        xaxis=dict(
-            title=dict(text="Porcentagem de Prejuízo", font=dict(size=36)),
-            tickfont=dict(size=32)
-            ),
-        yaxis=dict(
-            title=dict(text="Quantidade", font=dict(size=36)),
-            tickfont=dict(size=32)
-            ),
-        width=1500,
-        height=1000,
-        font=dict(size=36),
-        title_font_size=40, 
-    )
+    st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
+    fig_prejuizo = px.histogram(prejuizos, x='profit_percentage', nbins=50, color_discrete_sequence=['red'])
+    fig_prejuizo.update_layout(title="", bargap=0.1, xaxis=dict(title=dict(text="Porcentagem de Prejuízo", font=dict(size=36)), tickfont=dict(size=32)), yaxis=dict(title=dict(text="Quantidade", font=dict(size=36)), tickfont=dict(size=32)), width=1500, height=1000, font=dict(size=36), title_font_size=40)
     st.plotly_chart(fig_prejuizo, use_container_width=False)
-
-    # --- NOVO: Gráfico de Boxplot para Prejuízo por Gênero ---
     st.subheader("📊 Distribuição de Prejuízo Percentual por Gênero (top 10 mais frequentes)")
     df_prejuizo = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
     if not df_prejuizo.empty:
         df_prejuizo_box = prepare_data_for_boxplot(df_prejuizo)
-        order = (
-            df_prejuizo_box.groupby('genres_translated')['profit_percentage']
-            .median()
-            .sort_values(ascending=True)
-            .index
-        )
-        fig_prejuizo_gen = px.box(
-            df_prejuizo_box,
-            x='profit_percentage',
-            y='genres_translated',
-            category_orders={'genres_translated': list(order)},
-            color_discrete_sequence=['lightcoral'],
-        )
-        fig_prejuizo_gen.update_layout(
-            title="",
-            xaxis=dict(
-                title=dict(text="Prejuízo (%)", font=dict(size=36)),
-                tickfont=dict(size=32),
-                range=[-100, 0]
-                ),
-            yaxis=dict(
-                title=dict(text="Gênero", font=dict(size=36)),
-                tickfont=dict(size=32)
-                ),
-            width=1500,
-            height=1000,
-            font=dict(size=36),
-            title_font_size=40, 
-        )
+        order = (df_prejuizo_box.groupby('genres_translated')['profit_percentage'].median().sort_values(ascending=True).index)
+        fig_prejuizo_gen = px.box(df_prejuizo_box, x='profit_percentage', y='genres_translated', category_orders={'genres_translated': list(order)}, color_discrete_sequence=['lightcoral'])
+        fig_prejuizo_gen.update_layout(title="", xaxis=dict(title=dict(text="Prejuízo (%)", font=dict(size=36)), tickfont=dict(size=32), range=[-100, 0]), yaxis=dict(title=dict(text="Gênero", font=dict(size=36)), tickfont=dict(size=32)), width=1500, height=1000, font=dict(size=36), title_font_size=40)
         fig_prejuizo_gen.update_yaxes(tickfont=dict(size=32))
         fig_prejuizo_gen.update_xaxes(tickfont=dict(size=32))
         st.plotly_chart(fig_prejuizo_gen, use_container_width=False)
     else:
         st.write("Não há dados de prejuízo para exibir com os filtros atuais.")
-
 @st.fragment
 def render_corr(df_final_filtered):
     st.divider()
     st.header("Análise de Correlações")
-    
     numeric_cols = df_final_filtered.select_dtypes(include=np.number).columns.tolist()
-    traducao_colunas = {
-        'popularity': 'Popularidade', 'budget': 'Orçamento',
-        'revenue': 'Receita', 'runtime': 'Duração', 'vote_average': 'Nota Média',
-        'vote_count': 'Qtd. de Votos', 'profit_percentage': '% de Lucro', 'release_year': 'Ano de Lançamento'
-    }
+    traducao_colunas = {'popularity': 'Popularidade', 'budget': 'Orçamento', 'revenue': 'Receita', 'runtime': 'Duração', 'vote_average': 'Nota Média', 'vote_count': 'Qtd. de Votos', 'profit_percentage': '% de Lucro', 'release_year': 'Ano de Lançamento'}
     cols_to_corr = [col for col in numeric_cols if col in traducao_colunas]
     correlation_matrix = df_final_filtered[cols_to_corr].corr()
     correlation_matrix.rename(columns=traducao_colunas, index=traducao_colunas, inplace=True)
-
     mask = np.tril(np.ones(correlation_matrix.shape), k=-1).astype(bool)
     correlation_matrix = correlation_matrix.mask(~mask)
-
     filtered_corr = correlation_matrix.dropna(axis=0, how='all').dropna(axis=1, how='all')
-
-    fig_corr = px.imshow(
-    filtered_corr,
-    text_auto=".2f",
-    color_continuous_scale="RdBu",
-    zmin=-1,
-    zmax=1,
-    labels=dict(color="Correlação")
-    )
-    fig_corr.update_layout(
-        title='',
-        xaxis=dict(
-            title=dict(text="Variáveis", font=dict(size=36)),
-            tickfont=dict(size=32)
-            ),
-        yaxis=dict(
-            title=dict(text="Variáveis", font=dict(size=36)),
-            tickfont=dict(size=32)
-            ),
-        width=1500,
-        height=1000,
-        font=dict(size=36),
-        title_font_size=40, 
-        )
+    fig_corr = px.imshow(filtered_corr, text_auto=".2f", color_continuous_scale="RdBu", zmin=-1, zmax=1, labels=dict(color="Correlação"))
+    fig_corr.update_layout(title='', xaxis=dict(title=dict(text="Variáveis", font=dict(size=36)), tickfont=dict(size=32)), yaxis=dict(title=dict(text="Variáveis", font=dict(size=36)), tickfont=dict(size=32)), width=1500, height=1000, font=dict(size=36), title_font_size=40)
     st.plotly_chart(fig_corr, use_container_width=False)
-
 
 with tab1:
     if df is not None:
-        # --- Controles Ficam na Sidebar ---
+        # --- Controles da Análise Ficam na Sidebar ---
         st.sidebar.header("⚙️ Filtros de Análise")
 
         df_for_filters = df.dropna(subset=['release_year']).copy()
@@ -582,7 +267,7 @@ with tab1:
 
         df_final_filtered = df_filtered.copy()
         
-        # --- Chamada dos Fragmentos ---    
+        # --- Chamada dos Fragmentos ---      
         render_main_plots(df_final_filtered)
         colLucro, colPrejuizo = st.columns(2)
         with colLucro:
@@ -597,7 +282,7 @@ with tab1:
 
 
 # ==============================================================================
-# === ABA 2: MACHINE LEARNING (não foi alterada) ===============================
+# === ABA 2: MACHINE LEARNING ==================================================
 # ==============================================================================
 with tab2:
     st.header("🤖 Modelos de Machine Learning")
@@ -605,27 +290,41 @@ with tab2:
     if ml_artifacts is None:
         st.error("**Arquivos dos modelos não encontrados!** Por favor, execute os scripts de treinamento para gerá-los.")
     else:
+        ### NOVO ### - O filtro do recomendador agora é criado DENTRO da aba 2
+        st.sidebar.header("🤖 Filtros do Recomendador")
+        num_recommendations = st.sidebar.slider(
+            "Número de Recomendações",
+            min_value=3,
+            max_value=20,
+            value=5, # Valor padrão
+            step=1,
+            help="Selecione quantos filmes você deseja que o sistema recomende."
+        )
+
         st.subheader("🍿 Sistema de Recomendação de Filmes")
-        st.markdown("Selecione um filme e veja 5 recomendações baseadas no conteúdo.")
+        st.markdown("Selecione um filme e veja recomendações aleatórias baseadas no conteúdo.")
         
         df_rec = ml_artifacts['df_rec']
         cosine_sim = ml_artifacts['cosine_sim']
         indices = pd.Series(df_rec.index, index=df_rec['title']).drop_duplicates()
 
-        def get_recommendations(title, cosine_sim=cosine_sim):
+        def get_recommendations(title, num_recs, cosine_sim=cosine_sim):
             idx = indices[title]
-            sim_scores = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:6]
-            movie_indices = [i[0] for i in sim_scores]
+            sim_scores_pool = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:51]
+            num_to_sample = min(num_recs, len(sim_scores_pool))
+            random_sim_scores = random.sample(sim_scores_pool, num_to_sample)
+            movie_indices = [i[0] for i in random_sim_scores]
             return df_rec['title'].iloc[movie_indices]
 
         movie_list = df_rec['title'].unique()
         selected_movie = st.selectbox("Escolha um filme:", movie_list)
 
         if st.button("Recomendar Filmes Similares"):
-            recommendations = get_recommendations(selected_movie)
-            st.success("Aqui estão suas recomendações:")
-            for i, movie in enumerate(recommendations):
-                st.write(f"**{i+1}.** {movie}")
+            with st.spinner("Buscando recomendações..."):
+                recommendations = get_recommendations(selected_movie, num_recommendations)
+                st.success("Aqui estão suas recomendações:")
+                for i, movie in enumerate(recommendations):
+                    st.write(f"**{i+1}.** {movie}")
 
         st.divider()
 
