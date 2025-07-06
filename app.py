@@ -140,9 +140,6 @@ def render_main_plots(df_final_filtered):
     st.subheader("💰 Receita vs. Orçamento")
     df_budget_revenue = df_final_filtered[df_final_filtered['budget'] > 1000]
 
-    st.subheader("💰 Receita vs. Orçamento")
-
-
     df = df_final_filtered[(df_final_filtered['budget'] > -1e9) & (df_final_filtered['revenue'] > -1e9)]  # só filtro básico
 
     fig = go.Figure(go.Histogram2dContour(
@@ -156,7 +153,7 @@ def render_main_plots(df_final_filtered):
     ))
 
     fig.update_layout(
-        title=dict(text="Receita vs. Orçamento (Densidade Contornada)", font=dict(size=40)),
+        title='',
         xaxis=dict(
             title=dict(text="Orçamento (USD)", font=dict(size=36)),
             tickfont=dict(size=32),
@@ -197,7 +194,7 @@ def render_main_plots(df_final_filtered):
         )
 
         fig2.update_layout(
-            title=dict(text="Nota média por Idioma", font=dict(size=40)),
+            title='',
             yaxis=dict(autorange='reversed', tickfont=dict(size=32), title=dict(text='Idioma', font=dict(size=36))),
             xaxis=dict(tickfont=dict(size=32), title=dict(text='Nota Média', font=dict(size=36))),
             font=dict(size=36),
@@ -225,7 +222,7 @@ def render_main_plots(df_final_filtered):
         )
 
         fig3.update_layout(
-            title=dict(text="Top 10 Gêneros por Número de Filmes", font=dict(size=40)),
+            title='',
             yaxis=dict(autorange="reversed", tickfont=dict(size=32), title=dict(text='Gênero', font=dict(size=36))),
             xaxis=dict(tickfont=dict(size=32), title=dict(text='Número de Filmes', font=dict(size=36))),
             font=dict(size=36),
@@ -255,7 +252,7 @@ def render_main_plots(df_final_filtered):
             width=1500,
         )
         fig6.update_layout(
-            title=dict(text="Top 10 Joias Escondidas", font=dict(size=40)),
+            title='',
             yaxis=dict(
                 autorange="reversed",
                 tickfont=dict(size=32),
@@ -277,11 +274,11 @@ def render_main_plots(df_final_filtered):
         df_final_filtered,
         x='runtime',
         nbins=50,
-        title="Distribuição de Duração (minutos)",
         color_discrete_sequence=['purple']
     )
 
     fig_runtime.update_layout(
+        title="",
         bargap=0.1,
         xaxis=dict(
             title=dict(text="Duração (minutos)", font=dict(size=36)),
@@ -301,24 +298,20 @@ def render_main_plots(df_final_filtered):
 
     st.subheader("⭐ Popularidade vs. Nota Média")
 
-    fig_pop = px.density_contour(
-        
-        df_final_filtered,
-        x='popularity',
-        y='vote_average',
-        nbinsx=100,
-        nbinsy=100,
-    )
-
-    fig_pop.update_traces(
-        contours_coloring='lines',  # só linhas, sem preenchimento
-        line_color='#9080ff',
-        line_width=3,
-        line_dash='solid'
-    )
+    fig_pop = go.Figure(data=go.Histogram2dContour(
+        x=df_final_filtered['popularity'],
+        y=df_final_filtered['vote_average'],
+        colorscale='Blues',
+        reversescale=True,
+        contours=dict(
+            coloring='fill',
+            showlines=True
+        ),
+        ncontours=20,
+    ))
 
     fig_pop.update_layout(
-        title=dict(text="Popularidade vs. Nota Média (Densidade Contornada)", font=dict(size=40)),
+        title='',
         xaxis=dict(
             title=dict(text="Popularidade", font=dict(size=36)),
             tickfont=dict(size=32),
@@ -333,12 +326,6 @@ def render_main_plots(df_final_filtered):
         font=dict(size=36),
         title_font_size=40,
     )
-
-    fig_pop.update_traces(
-    contours_coloring='fill',
-    line_color='#9080ff',   # cor da linha
-    line_width=3,
-)
 
     st.plotly_chart(fig_pop, use_container_width=False)
 
@@ -365,11 +352,11 @@ def render_profit_distribution_plot(df_final_filtered):
     lucros_filtrados,
     x='profit_percentage',
     nbins=50,
-    title="Distribuição de Lucros Positivos",
     color_discrete_sequence=['green']
     )
 
     fig_lucros.update_layout(
+        title="",
         bargap=0.1,
         xaxis=dict(
             title=dict(text="Porcentagem de Lucro", font=dict(size=36)),
@@ -397,7 +384,7 @@ def render_profit_boxplots(df_final_filtered):
     FIG_DPI = 75
 
     # --- NOVO: Gráfico de Boxplot para Lucro por Gênero ---
-    st.subheader("📊 Distribuição de Lucro Percentual por Gênero")
+    st.subheader("📊 Distribuição de Lucro Percentual por Gênero (top 10 mais frequentes)")
     df_lucro = df_final_filtered[df_final_filtered['profit_percentage'].between(0.01, 5000)] # Filtro para lucros razoáveis
     if not df_lucro.empty:
         df_lucro_box = prepare_data_for_boxplot(df_lucro)
@@ -419,12 +406,7 @@ def render_profit_boxplots(df_final_filtered):
         fig_lucro_gen.update_traces(marker=dict(size=5, opacity=0.2))
 
         fig_lucro_gen.update_layout(
-            title=dict(
-                text="Boxplot de Lucro por Gênero (Top 10 mais Frequentes)",
-                x=0.5,
-                xanchor="center",
-                font=dict(size=40)
-            ),
+            title='',
             font=dict(size=36),
             xaxis=dict(
                 title=dict(text="Lucro (%)", font=dict(size=36)),
@@ -455,10 +437,10 @@ def render_profit_loss_boxplots(df_final_filtered):
         prejuizos,
         x='profit_percentage',
         nbins=50,
-        title="Distribuição de Prejuízos",
         color_discrete_sequence=['red']
     )
     fig_prejuizo.update_layout(
+        title="",
         bargap=0.1,
         xaxis=dict(
             title=dict(text="Porcentagem de Prejuízo", font=dict(size=36)),
@@ -476,7 +458,7 @@ def render_profit_loss_boxplots(df_final_filtered):
     st.plotly_chart(fig_prejuizo, use_container_width=False)
 
     # --- NOVO: Gráfico de Boxplot para Prejuízo por Gênero ---
-    st.subheader("📊 Distribuição de Prejuízo Percentual por Gênero")
+    st.subheader("📊 Distribuição de Prejuízo Percentual por Gênero (top 10 mais frequentes)")
     df_prejuizo = df_final_filtered[df_final_filtered['profit_percentage'] < 0]
     if not df_prejuizo.empty:
         df_prejuizo_box = prepare_data_for_boxplot(df_prejuizo)
@@ -494,7 +476,7 @@ def render_profit_loss_boxplots(df_final_filtered):
             color_discrete_sequence=['lightcoral'],
         )
         fig_prejuizo_gen.update_layout(
-            title="Boxplot de Prejuízo por Gênero (Top 10 mais Frequentes)",
+            title="",
             xaxis=dict(
                 title=dict(text="Prejuízo (%)", font=dict(size=36)),
                 tickfont=dict(size=32),
@@ -544,7 +526,7 @@ def render_corr(df_final_filtered):
     labels=dict(color="Correlação")
     )
     fig_corr.update_layout(
-        title="Matriz de Correlação",
+        title='',
         xaxis=dict(
             title=dict(text="Variáveis", font=dict(size=36)),
             tickfont=dict(size=32)
