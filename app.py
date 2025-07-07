@@ -107,10 +107,42 @@ def prepare_data_for_boxplot(df, top_n=10):
     
     return df_filtered
 
+def prepare_opcoes_para_campos_de_ml(df):
+    try:
+        generos_unicos = sorted(set(
+            g.strip()
+            for gen_str in df['genres'].dropna()
+            for g in gen_str.split(',')
+        ))
+
+        produtoras_unicas = sorted(set(
+            g.strip()
+            for gen_str in df['production_companies'].dropna()
+            for g in gen_str.split(',')
+        ))
+
+        diretores_unicos = sorted(set(
+            g.strip()
+            for gen_str in df['director'].dropna()
+            for g in gen_str.split(',')
+        ))
+
+        atores_unicos = sorted(set(
+            ator.strip()
+            for cast_str in df['cast'].dropna()
+            for ator in cast_str.split(',')
+        ))
+        return generos_unicos, produtoras_unicas, diretores_unicos, atores_unicos
+    except:
+        return None
+
 
 # Carregamento dos dados
 df = load_base_data()
 ml_artifacts = load_ml_artifacts()
+
+# Carregando as opções dos campos para ML
+generos_unicos, produtoras_unicas, diretores_unicos, atores_unicos = prepare_opcoes_para_campos_de_ml(df)
 
 # --- Abas para Organização ---
 tab1, tab2 = st.tabs(["📊 Análise Exploratória", "🤖 Modelos de Machine Learning"])
@@ -633,25 +665,34 @@ with tab2:
         st.markdown("Insira os dados de um filme hipotético para prever sua receita potencial.")
 
         with st.form("prediction_form"):
+
+            
+
             col_form1, col_form2 = st.columns(2)
             with col_form1:
                 budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
                 popularity = st.number_input("Popularidade (TMDb)", min_value=0.0, value=50.0, step=0.5)
                 runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
-                genres = st.text_input("Gêneros (separados por vírgula)", "Action, Adventure, Science Fiction")
+                genres = st.multiselect(label="Gêneros (separados por vírgula)", options=generos_unicos ,placeholder="Action, Adventure, Science Fiction")
             
             with col_form2:
-                production_companies = st.text_input("Produtora(s)", "Warner Bros. Pictures, Legendary Pictures")
-                cast = st.text_input("Elenco Principal", "Leonardo DiCaprio, Joseph Gordon-Levitt, Elliot Page")
-                director = st.text_input("Diretor(es)", "Christopher Nolan")
+                production_companies = st.multiselect(label="Produtora(s)", options= produtoras_unicas,placeholder= "Warner Bros. Pictures, Legendary Pictures")
+                cast = st.multiselect(label="Elenco Principal", options= atores_unicos,placeholder= "Leonardo DiCaprio, Joseph Gordon-Levitt, Elliot Page")
+                director = st.multiselect(label="Diretor(es)", options= diretores_unicos,placeholder= "Christopher Nolan")
 
             submitted = st.form_submit_button("Prever Receita")
             
             if submitted:
+
+                genres_formatted = ", ".join(genres)
+                production_companies_formatted = ", ".join(production_companies)
+                cast_formatted = ", ".join(cast)
+                director_formatted = ", ".join(director)
+
                 input_data = pd.DataFrame({
                     'budget': [budget], 'popularity': [popularity], 'runtime': [runtime],
-                    'genres': [genres], 'production_companies': [production_companies],
-                    'cast': [cast], 'director': [director]
+                    'genres': [genres_formatted], 'production_companies': [production_companies_formatted],
+                    'cast': [cast_formatted], 'director': [director_formatted]
                 })
 
                 with st.spinner("Processando..."):
