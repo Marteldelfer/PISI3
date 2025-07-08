@@ -50,7 +50,7 @@ def load_ml_artifacts():
         return None
 
 # --- Dicionários e Funções Auxiliares ---
-LANGUAGE_CODES_TO_PORTUGUESE = {'en': 'Inglês', 'fr': 'Francês', 'ko': 'Coreano', 'ja': 'Japonês', 'zh': 'Chinês', 'es': 'Espanhol', 'de': 'Alemão', 'hi': 'Hindi', 'ru': 'Russo', 'it': 'Italiano', 'pt': 'Português', 'ar': 'Árabe', 'cn': 'Cantonês', 'sv': 'Sueco', 'da': 'Dinamarquês', 'no': 'Norueguês', 'fi': 'Finlandês', 'nl': 'Holandês', 'pl': 'Polonês', 'th': 'Tailandês', 'id': 'Indonésio', 'cs': 'Checo', 'hu': 'Húngaro', 'tr': 'Turco', 'el': 'Grego', 'fa': 'Persa', 'he': 'Hebraico', 'te': 'Telugo', 'ml': 'Malaiala', 'sr': 'Sérvio', 'bg': 'Búlgaro', 'uk': 'Ucraniano', 'ta': 'Tâmil', 'ab': 'Abcázio', 'az': 'Azerbaijano', 'bm': 'Bâmbara', 'bn': 'Bengali', 'bs': 'Bósnio', 'ca': 'Catalão', 'dv': 'Diveí', 'dz': 'Dzongkha', 'et': 'Estoniano', 'eu': 'Basco', 'ff': 'Fula', 'ga': 'Irlandês', 'gl': 'Galego', 'gu': 'Gujarati', 'hr': 'Croata', 'hy': 'Armênio', 'ig': 'Ibo', 'is': 'Islandês', 'iu': 'Inuktitut', 'km': 'Khmer', 'kn': 'Canarês', 'ku': 'Curdo', 'la': 'Latim', 'lt': 'Lituano', 'lv': 'Letão', 'mn': 'Mongol', 'mr': 'Marata', 'ms': 'Malaio', 'ne': 'Nepali', 'pa': 'Panjabi', 'ps': 'Pachto', 'ro': 'Romeno', 'si': 'Cingalês', 'sk': 'Eslovaco', 'sl': 'Esloveno', 'sw': 'Suaíli', 'tl': 'Tagalo', 'tn': 'Tswana', 'ur': 'Urdu', 'vi': 'Vietnamita', 'xx': 'Desconhecido'}
+language_map = {'en': 'Inglês', 'fr': 'Francês', 'ko': 'Coreano', 'ja': 'Japonês', 'zh': 'Chinês', 'es': 'Espanhol', 'de': 'Alemão', 'hi': 'Hindi', 'ru': 'Russo', 'it': 'Italiano', 'pt': 'Português', 'ar': 'Árabe', 'cn': 'Cantonês', 'sv': 'Sueco', 'da': 'Dinamarquês', 'no': 'Norueguês', 'fi': 'Finlandês', 'nl': 'Holandês', 'pl': 'Polonês', 'th': 'Tailandês', 'id': 'Indonésio', 'cs': 'Checo', 'hu': 'Húngaro', 'tr': 'Turco', 'el': 'Grego', 'fa': 'Persa', 'he': 'Hebraico', 'te': 'Telugo', 'ml': 'Malaiala', 'sr': 'Sérvio', 'bg': 'Búlgaro', 'uk': 'Ucraniano', 'ta': 'Tâmil', 'ab': 'Abcázio', 'az': 'Azerbaijano', 'bm': 'Bâmbara', 'bn': 'Bengali', 'bs': 'Bósnio', 'ca': 'Catalão', 'dv': 'Diveí', 'dz': 'Dzongkha', 'et': 'Estoniano', 'eu': 'Basco', 'ff': 'Fula', 'ga': 'Irlandês', 'gl': 'Galego', 'gu': 'Gujarati', 'hr': 'Croata', 'hy': 'Armênio', 'ig': 'Ibo', 'is': 'Islandês', 'iu': 'Inuktitut', 'km': 'Khmer', 'kn': 'Canarês', 'ku': 'Curdo', 'la': 'Latim', 'lt': 'Lituano', 'lv': 'Letão', 'mn': 'Mongol', 'mr': 'Marata', 'ms': 'Malaio', 'ne': 'Nepali', 'pa': 'Panjabi', 'ps': 'Pachto', 'ro': 'Romeno', 'si': 'Cingalês', 'sk': 'Eslovaco', 'sl': 'Esloveno', 'sw': 'Suaíli', 'tl': 'Tagalo', 'tn': 'Tswana', 'ur': 'Urdu', 'vi': 'Vietnamita', 'xx': 'Desconhecido'}
 TRADUCOES_GENEROS = {"Action": "Ação", "Adventure": "Aventura", "Animation": "Animação", "Comedy": "Comédia", "Crime": "Crime", "Documentary": "Documentário", "Drama": "Drama", "Family": "Família", "Fantasy": "Fantasia", "History": "História", "Horror": "Terror", "Music": "Música", "Mystery": "Mistério", "Romance": "Romance", "Science Fiction": "Ficção Científica", "TV Movie": "Filme de TV", "Thriller": "Suspense", "War": "Guerra", "Western": "Faroeste"}
 REVERSE_TRADUCOES_GENEROS = {v: k for k, v in TRADUCOES_GENEROS.items()}
 def traduzir_generos(lista_generos):
@@ -59,9 +59,12 @@ def prepare_data_for_boxplot(df, top_n=10):
     df_exploded = df.dropna(subset=['genres']).copy()
     df_exploded['genres'] = df_exploded['genres'].str.split(', ')
     df_exploded = df_exploded.explode('genres')
+    
     top_genres = df_exploded['genres'].value_counts().nlargest(top_n).index
-    df_filtered = df_exploded[df_exploded['genres'].isin(top_genres)]
-    df_filtered['genres_translated'] = df_filtered['genres'].map(TRADUCOES_GENEROS)
+    df_filtered = df_exploded[df_exploded['genres'].isin(top_genres)].copy()
+    
+    df_filtered.loc[:, 'genres_translated'] = df_filtered['genres'].map(TRADUCOES_GENEROS)
+    
     return df_filtered
 
 # --- Funções de Renderização dos Gráficos ---
@@ -85,7 +88,7 @@ def render_main_plots(df_final_filtered):
     filtered_df_lang = df_final_filtered[df_final_filtered['original_language'].isin(frequent_langs)]
     if not filtered_df_lang.empty:
         language_ratings = filtered_df_lang.groupby('original_language')['vote_average'].mean().sort_values(ascending=False).head(10)
-        languages_pt = [LANGUAGE_CODES_TO_PORTUGUESE.get(lang, lang) for lang in language_ratings.index]
+        languages_pt = [language_map.get(lang, lang) for lang in language_ratings.index]
         fig2 = px.bar(x=language_ratings.values, y=languages_pt, orientation='h', color=language_ratings.values, color_continuous_scale='Viridis_r', labels={'x': 'Nota Média', 'y': 'Idioma'})
         st.plotly_chart(fig2, use_container_width=True)
     st.subheader("🎭 Top 10 Gêneros por Número de Filmes")
@@ -195,7 +198,7 @@ def render_corr(df_final_filtered):
     st.divider()
     st.header("Análise de Correlações")
     numeric_cols = df_final_filtered.select_dtypes(include=np.number).columns.tolist()
-    traducao_colunas = {'popularity': 'Popularidade', 'budget': 'Orçamento', 'revenue': 'Receita', 'runtime': 'Duração', 'vote_average': 'Nota Média', 'vote_count': 'Qtd. de Votos', 'profit_percentage': '% de Lucro', 'release_year': 'Ano de Lançamento'}
+    traducao_colunas = {'original_language': 'Idioma', 'budget': 'Orçamento', 'revenue': 'Receita', 'runtime': 'Duração', 'vote_average': 'Nota Média', 'vote_count': 'Qtd. de Votos', 'profit_percentage': '% de Lucro', 'release_year': 'Ano de Lançamento'}
     cols_to_corr = [col for col in numeric_cols if col in traducao_colunas]
     correlation_matrix = df_final_filtered[cols_to_corr].corr()
     correlation_matrix.rename(columns=traducao_colunas, index=traducao_colunas, inplace=True)
@@ -281,7 +284,7 @@ if page == "📊 Análise Exploratória":
         revenue_range = st.sidebar.slider("💰 Receita (USD)", min_revenue, max_revenue, (min_revenue, max_revenue), format="$%.0f")
         
         all_langs = sorted(df['original_language'].dropna().unique().tolist())
-        lang_options = [f"{LANGUAGE_CODES_TO_PORTUGUESE.get(c, 'Desconhecido')} ({c})" for c in all_langs]
+        lang_options = [f"{language_map.get(c, 'Desconhecido')} ({c})" for c in all_langs]
         selected_langs_display = st.sidebar.multiselect("🗣️ Idioma Original", lang_options, default=lang_options)
         selected_languages_codes = [opt[opt.rfind('(') + 1:opt.rfind(')')] for opt in selected_langs_display]
         
@@ -357,31 +360,56 @@ elif page == "🤖 Modelos de Machine Learning":
                 for i, movie in enumerate(recommendations):
                     st.write(f"**{i+1}.** {movie}")
         st.divider()
-        st.subheader("💸 Previsão de Receita de Bilheteria")
-        st.markdown("Insira os dados de um filme hipotético para prever sua receita potencial.")
-        with st.form("prediction_form"):
-            col_form1, col_form2 = st.columns(2)
-            with col_form1:
-                budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
-                # popularity = st.number_input("Popularidade (TMDb)", min_value=0.0, value=50.0, step=0.5)
-                runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
-                genres = st.multiselect(label="Gêneros (separados por vírgula)", options=generos_unicos ,placeholder="Action, Adventure, Science Fiction")
-            with col_form2:
-                production_companies = st.multiselect(label="Produtora(s)", options= produtoras_unicas,placeholder= "Warner Bros. Pictures, Legendary Pictures")
-                cast = st.multiselect(label="Elenco Principal", options= atores_unicos,placeholder= "Leonardo DiCaprio, Joseph Gordon-Levitt, Elliot Page")
-                director = st.multiselect(label="Diretor(es)", options= diretores_unicos,placeholder= "Christopher Nolan")
-            submitted = st.form_submit_button("Prever Receita")
-            if submitted:
+    
+    st.subheader("💸 Previsão de Receita de Bilheteria")
+    st.markdown("Insira os dados de um filme hipotético para prever sua receita potencial.")
 
-                genres_formatted = ", ".join(genres)
-                production_companies_formatted = ", ".join(production_companies)
-                cast_formatted = ", ".join(cast)
-                director_formatted = ", ".join(director)
+    # 🔄 1. Obter todos os idiomas únicos do DataFrame original
+    idiomas_unicos = sorted(df['original_language'].dropna().unique().tolist())
 
-                input_data = pd.DataFrame({'budget': [budget], 'popularity': [popularity], 'runtime': [runtime], 'genres': [genres_formatted], 'production_companies': [production_companies_formatted], 'cast': [cast_formatted], 'director': [director_formatted]})
-                with st.spinner("Processando..."):
-                    pipeline = ml_artifacts['regression_pipeline']
-                    prediction = pipeline.predict(input_data)
-                    predicted_revenue = prediction[0]
-                st.success("Previsão Concluída!")
-                st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
+
+    # 🧾 3. Criar lista com "Nome (código)" e dicionário reverso
+    idiomas_legiveis = [f"{language_map.get(code, 'Outro')} ({code})" for code in idiomas_unicos]
+    codigo_por_idioma_legivel = {f"{language_map.get(code, 'Outro')} ({code})": code for code in idiomas_unicos}
+
+    # 🧩 4. Formulário de entrada
+    with st.form("prediction_form"):
+        col_form1, col_form2 = st.columns(2)
+        with col_form1:
+            budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
+            runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
+            idioma_escolhido = st.selectbox("Idioma Original", options=idiomas_legiveis)
+            genres = st.multiselect("Gêneros", options=generos_unicos, placeholder="Action, Adventure, Science Fiction")
+
+        with col_form2:
+            production_companies = st.multiselect("Produtora(s)", options=produtoras_unicas, placeholder="Warner Bros. Pictures")
+            cast = st.multiselect("Elenco Principal", options=atores_unicos, placeholder="Leonardo DiCaprio, Tom Hanks")
+            director = st.multiselect("Diretor(es)", options=diretores_unicos, placeholder="Christopher Nolan")
+
+        submitted = st.form_submit_button("Prever Receita")
+
+        if submitted:
+            genres_formatted = ", ".join(genres)
+            production_companies_formatted = ", ".join(production_companies)
+            cast_formatted = ", ".join(cast)
+            director_formatted = ", ".join(director)
+            language_code = codigo_por_idioma_legivel[idioma_escolhido]
+
+            # ✅ DataFrame com nomes exatos que o pipeline espera
+            input_data = pd.DataFrame({
+                'budget': [budget],
+                'original_language': [language_code],
+                'runtime': [runtime],
+                'genres': [genres_formatted],
+                'production_companies': [production_companies_formatted],
+                'cast': [cast_formatted],
+                'director': [director_formatted]
+            })
+
+            with st.spinner("Processando..."):
+                pipeline = ml_artifacts['regression_pipeline']
+                prediction = pipeline.predict(input_data)
+                predicted_revenue = prediction[0]
+
+            st.success("Previsão Concluída!")
+            st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
