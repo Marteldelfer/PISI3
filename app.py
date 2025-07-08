@@ -102,14 +102,14 @@ def render_main_plots(df_final_filtered):
     undervalued = df_final_filtered[(df_final_filtered['popularity'] < mediana_pop) & (df_final_filtered['vote_average'] >= 7.5) & (df_final_filtered['vote_count'] >= 100)]
     top_pearl = undervalued.sort_values(['vote_average', 'vote_count'], ascending=[False, False]).head(10)
     if not top_pearl.empty:
-        fig6 = px.bar(top_pearl, x='vote_average', y='title', orientation='h', color='vote_average', color_continuous_scale='magma', labels={'vote_average': 'Média de Votos', 'title': 'Título do Filme'})
+        fig6 = px.bar(top_pearl, x='vote_average', y='title', orientation='h', color='vote_average', color_continuous_scale='Teal', labels={'vote_average': 'Média de Votos', 'title': 'Título do Filme'})
         fig6.update_layout(yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig6, use_container_width=True)
     st.subheader("⏱️ Distribuição da Duração dos Filmes (Runtime)")
     fig_runtime = px.histogram(df_final_filtered, x='runtime', nbins=50, color_discrete_sequence=['purple'], labels={'runtime': 'Duração (minutos)'})
     st.plotly_chart(fig_runtime, use_container_width=True)
     st.subheader("⭐ Popularidade vs. Nota Média")
-    fig_pop = go.Figure(data=go.Histogram2dContour(x=df_final_filtered['popularity'], y=df_final_filtered['vote_average'], colorscale='Blues', reversescale=True, contours=dict(coloring='fill', showlines=True), ncontours=20))
+    fig_pop = go.Figure(data=go.Histogram2dContour(x=df_final_filtered['popularity'], y=df_final_filtered['vote_average'], colorscale='OrRd', reversescale=False, contours=dict(coloring='fill', showlines=True), ncontours=20))
     fig_pop.update_layout(xaxis=dict(title='Popularidade', range=[0, df_final_filtered['popularity'].quantile(0.95)]), yaxis=dict(title='Nota Média'))
     st.plotly_chart(fig_pop, use_container_width=True)
 
@@ -127,15 +127,54 @@ def plot_loss_histogram(df):
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_profit_boxplot(df):
-    st.subheader("📊 Lucro por Gênero")
-    df_lucro = df[df['profit_percentage'].between(0.01, 5000)]
-    if not df_lucro.empty:
-        df_lucro_box = prepare_data_for_boxplot(df_lucro)
-        order = (df_lucro_box.groupby('genres_translated')['profit_percentage'].median().sort_values(ascending=False).index)
-        fig = px.box(df_lucro_box, x='profit_percentage', y='genres_translated', category_orders={'genres_translated': list(order)}, color_discrete_sequence=['lightgreen'], labels={'profit_percentage': 'Lucro (%)', 'genres_translated': 'Gênero'})
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.write("Não há dados de lucro para exibir.")
+    st.subheader("📊 Distribuição de Lucro (%) por Gênero")
+
+    # Filtrar dados com lucro positivo realista
+    df_lucro = df[df['profit_percentage'].between(0.01, 5000)].copy()
+
+    if df_lucro.empty:
+        st.info("⚠️ Não há dados de lucro para exibir.")
+        return
+
+    # Preparar dados por gênero traduzido
+    df_box = prepare_data_for_boxplot(df_lucro)
+
+    # Remover outliers com base no IQR (por gênero)
+    def remover_outliers_por_genero(df):
+        resultado = []
+        for genero in df['genres_translated'].unique():
+            subset = df[df['genres_translated'] == genero]
+            q1 = subset['profit_percentage'].quantile(0.25)
+            q3 = subset['profit_percentage'].quantile(0.75)
+            iqr = q3 - q1
+            filtro = subset[(subset['profit_percentage'] >= q1 - 1.5 * iqr) &
+                            (subset['profit_percentage'] <= q3 + 1.5 * iqr)]
+            resultado.append(filtro)
+        return pd.concat(resultado)
+
+    df_sem_outliers = remover_outliers_por_genero(df_box)
+
+    # Ordenar os gêneros pela mediana do lucro
+    order = (df_sem_outliers.groupby('genres_translated')['profit_percentage']
+             .median()
+             .sort_values(ascending=False)
+             .index)
+
+    # Plot com Plotly
+    fig = px.box(
+        df_sem_outliers,
+        x='profit_percentage',
+        y='genres_translated',
+        category_orders={'genres_translated': list(order)},
+        color_discrete_sequence=['mediumseagreen'],
+        labels={
+            'profit_percentage': 'Lucro (%)',
+            'genres_translated': 'Gênero'
+        },
+    )
+
+
+    st.plotly_chart(fig, use_container_width=True)
 
 def plot_loss_boxplot(df):
     st.subheader("📊 Prejuízo por Gênero")
@@ -167,7 +206,7 @@ def render_corr(df_final_filtered):
     filtered_corr = correlation_matrix.dropna(axis=0, how='all').dropna(axis=1, how='all')
     
     # Gráfico original com px.imshow
-    fig_corr = px.imshow(filtered_corr, text_auto=".2f", color_continuous_scale="RdBu", zmin=-1, zmax=1, labels=dict(color="Correlação"))
+    fig_corr = px.imshow(filtered_corr, text_auto=".2f", color_continuous_scale="RdYlGn", zmin=-1, zmax=1, labels=dict(color="Correlação"))
     fig_corr.update_layout(title='', width=1000, height=800) # Layout mais próximo do original
     st.plotly_chart(fig_corr, use_container_width=True)
 
