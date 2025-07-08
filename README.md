@@ -72,7 +72,14 @@ Siga os passos abaixo para clonar este repositório e configurar o ambiente virt
     pip install -r requirements.txt
 ```
 
-## 5. Executar o Streamlit
+
+## 5. Treine os modelos (isto pode demorar alguns minutos)
+```
+  python .\recommendation_training.py
+  python .\model_training.py
+```
+
+## 6. Executar o Streamlit
 ```
   streamlit run .\app.py
 ```
