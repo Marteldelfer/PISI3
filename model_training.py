@@ -24,7 +24,7 @@ def train_and_save_pipeline():
     # 2. Limpeza e Seleção de Features
     # Usaremos apenas as colunas necessárias para o modelo e removeremos linhas com dados faltantes nelas.
     features = [
-        'budget', 'popularity', 'runtime', 'genres', 'production_companies',
+        'budget', 'original_language', 'runtime', 'genres', 'production_companies',
         'cast', 'director', 'revenue'
     ]
     df_model = df[features].copy()
@@ -39,17 +39,18 @@ def train_and_save_pipeline():
 
     # 4. Definir o pré-processador com ColumnTransformer
     # Isso garante que cada tipo de coluna receba o tratamento correto.
-    numeric_features = ['budget', 'popularity', 'runtime']
-    text_features = ['genres', 'production_companies', 'cast', 'director']
+    numeric_features = ['budget', 'runtime']
+    
+    # ATENÇÃO: 'text_features' está definida mas não usada diretamente abaixo,
+    # mas o importante é que 'original_language' seja adicionada ao ColumnTransformer.
+    # text_features = ['genres', 'original_language', 'production_companies', 'cast', 'director'] 
 
-    # Criamos um transformador para colunas numéricas e um para cada coluna de texto
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), numeric_features),
-            # Usamos CountVectorizer para transformar texto em vetores numéricos
             ('genres', CountVectorizer(), 'genres'),
+            ('language', CountVectorizer(), 'original_language'),  # <-- LINHA ADICIONADA/CORRIGIDA AQUI
             ('companies', CountVectorizer(), 'production_companies'),
-            # Limitamos o número de atores para evitar uma matriz muito grande
             ('cast', CountVectorizer(max_features=200, stop_words='english'), 'cast'),
             ('director', CountVectorizer(), 'director')
         ],
