@@ -363,7 +363,7 @@ elif page == "🤖 Modelos de Machine Learning":
             col_form1, col_form2 = st.columns(2)
             with col_form1:
                 budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
-                popularity = st.number_input("Popularidade (TMDb)", min_value=0.0, value=50.0, step=0.5)
+                # popularity = st.number_input("Popularidade (TMDb)", min_value=0.0, value=50.0, step=0.5)
                 runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
                 genres = st.multiselect(label="Gêneros (separados por vírgula)", options=generos_unicos ,placeholder="Action, Adventure, Science Fiction")
             with col_form2:
