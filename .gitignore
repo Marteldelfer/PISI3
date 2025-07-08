@@ -1,1 +1,5 @@
 .venv
+cosine_sim.pkl
+df_rec.csv
+full_model_pipeline.pkl
+requirements.txt
