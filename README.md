@@ -72,3 +72,8 @@ Siga os passos abaixo para clonar este repositório e configurar o ambiente virt
     pip install -r requirements.txt
 ```
 
+## 5. Executar o Streamlit
+```
+  streamlit run .\app.py
+```
+
