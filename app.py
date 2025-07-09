@@ -218,7 +218,7 @@ def render_corr(df_final_filtered):
     fig_corr.update_layout(title='', width=1000, height=800) # Layout mais próximo do original
     st.plotly_chart(fig_corr, use_container_width=True)
 
-def prepare_opcoes_para_campos_de_ml(df):
+def prepare_opcoes_para_campos_de_ml(df, top_n_actors=5985): # Adicionado parâmetro top_n_actors
     try:
         generos_unicos = sorted(set(
             g.strip()
@@ -238,15 +238,23 @@ def prepare_opcoes_para_campos_de_ml(df):
             for g in gen_str.split(',')
         ))
 
-        atores_unicos = sorted(set(
+        # --- CORREÇÃO AQUI: Limitar o número de atores ---
+        # 1. Coletar todos os atores e suas frequências
+        all_actors = Counter(
             ator.strip()
             for cast_str in df['cast'].dropna()
             for ator in cast_str.split(',')
-        ))
-        return generos_unicos, produtoras_unicas, diretores_unicos, atores_unicos
-    except:
-        return None
+        )
+        # 2. Selecionar os N atores mais comuns
+        top_actors_list = [actor for actor, count in all_actors.most_common(top_n_actors)]
+        # 3. Ordenar a lista dos top N atores
+        atores_unicos = sorted(top_actors_list)
+        # --- FIM DA CORREÇÃO ---
 
+        return generos_unicos, produtoras_unicas, diretores_unicos, atores_unicos
+    except Exception as e: # Use Exception para pegar erros e depurar
+        st.error(f"Erro ao preparar opções para ML: {e}")
+        return None, None, None, None # Retorne None para todas as variáveis em caso de erro
 
 
 # Carregamento dos dados
@@ -414,7 +422,6 @@ elif page == "🤖 Modelos de Machine Learning":
                     'cast': [cast_formatted],
                     'director': [director_formatted]
                 })
-
 
                 with st.spinner("Processando..."):
                     pipeline = ml_artifacts['regression_pipeline']
