@@ -38,25 +38,19 @@ def train_and_save_pipeline():
 
 
     # 4. Definir o pré-processador com ColumnTransformer
-    # Isso garante que cada tipo de coluna receba o tratamento correto.
     numeric_features = ['budget', 'runtime']
-    
-    # ATENÇÃO: 'text_features' está definida mas não usada diretamente abaixo,
-    # mas o importante é que 'original_language' seja adicionada ao ColumnTransformer.
-    # text_features = ['genres', 'original_language', 'production_companies', 'cast', 'director'] 
 
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), numeric_features),
             ('genres', CountVectorizer(), 'genres'),
-            ('language', CountVectorizer(), 'original_language'),  # <-- LINHA ADICIONADA/CORRIGIDA AQUI
+            ('language', CountVectorizer(), 'original_language'),
             ('companies', CountVectorizer(), 'production_companies'),
             ('cast', CountVectorizer(max_features=200, stop_words='english'), 'cast'),
             ('director', CountVectorizer(), 'director')
         ],
-        remainder='drop'  # Ignora colunas não especificadas
+        remainder='drop'
     )
-
     # 5. Criar o Pipeline Completo
     # O Pipeline encadeia o pré-processamento e o modelo de regressão.
     model_pipeline = Pipeline(steps=[
