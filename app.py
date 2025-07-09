@@ -102,7 +102,7 @@ def render_main_plots(df_final_filtered):
     if top_genres:
         genres_names, genres_vals = zip(*top_genres)
         genres_names_traduzidos = traduzir_generos_para_pt(list(genres_names))
-        fig3 = px.bar(x=genres_vals, y=genres_names_traduzidos, orientation='h', color=genres_vals, color_continuous_scale='Blues_r', labels={'x': 'Número de Filmes', 'y': 'Gênero'})
+        fig3 = px.bar(x=genres_vals, y=genres_names_traduzidos, orientation='h', color=genres_vals, color_continuous_scale='Blues', labels={'x': 'Número de Filmes', 'y': 'Gênero'})
         fig3.update_layout(yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig3, use_container_width=True)
     st.subheader("💎 Top 10 'Joias Escondidas'")
