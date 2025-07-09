@@ -53,8 +53,13 @@ def load_ml_artifacts():
 language_map = {'en': 'Inglês', 'fr': 'Francês', 'ko': 'Coreano', 'ja': 'Japonês', 'zh': 'Chinês', 'es': 'Espanhol', 'de': 'Alemão', 'hi': 'Hindi', 'ru': 'Russo', 'it': 'Italiano', 'pt': 'Português', 'ar': 'Árabe', 'cn': 'Cantonês', 'sv': 'Sueco', 'da': 'Dinamarquês', 'no': 'Norueguês', 'fi': 'Finlandês', 'nl': 'Holandês', 'pl': 'Polonês', 'th': 'Tailandês', 'id': 'Indonésio', 'cs': 'Checo', 'hu': 'Húngaro', 'tr': 'Turco', 'el': 'Grego', 'fa': 'Persa', 'he': 'Hebraico', 'te': 'Telugo', 'ml': 'Malaiala', 'sr': 'Sérvio', 'bg': 'Búlgaro', 'uk': 'Ucraniano', 'ta': 'Tâmil', 'ab': 'Abcázio', 'az': 'Azerbaijano', 'bm': 'Bâmbara', 'bn': 'Bengali', 'bs': 'Bósnio', 'ca': 'Catalão', 'dv': 'Diveí', 'dz': 'Dzongkha', 'et': 'Estoniano', 'eu': 'Basco', 'ff': 'Fula', 'ga': 'Irlandês', 'gl': 'Galego', 'gu': 'Gujarati', 'hr': 'Croata', 'hy': 'Armênio', 'ig': 'Ibo', 'is': 'Islandês', 'iu': 'Inuktitut', 'km': 'Khmer', 'kn': 'Canarês', 'ku': 'Curdo', 'la': 'Latim', 'lt': 'Lituano', 'lv': 'Letão', 'mn': 'Mongol', 'mr': 'Marata', 'ms': 'Malaio', 'ne': 'Nepali', 'pa': 'Panjabi', 'ps': 'Pachto', 'ro': 'Romeno', 'si': 'Cingalês', 'sk': 'Eslovaco', 'sl': 'Esloveno', 'sw': 'Suaíli', 'tl': 'Tagalo', 'tn': 'Tswana', 'ur': 'Urdu', 'vi': 'Vietnamita', 'xx': 'Desconhecido'}
 TRADUCOES_GENEROS = {"Action": "Ação", "Adventure": "Aventura", "Animation": "Animação", "Comedy": "Comédia", "Crime": "Crime", "Documentary": "Documentário", "Drama": "Drama", "Family": "Família", "Fantasy": "Fantasia", "History": "História", "Horror": "Terror", "Music": "Música", "Mystery": "Mistério", "Romance": "Romance", "Science Fiction": "Ficção Científica", "TV Movie": "Filme de TV", "Thriller": "Suspense", "War": "Guerra", "Western": "Faroeste"}
 REVERSE_TRADUCOES_GENEROS = {v: k for k, v in TRADUCOES_GENEROS.items()}
-def traduzir_generos(lista_generos):
-    return [TRADUCOES_GENEROS.get(genero, genero) for genero in lista_generos]
+def traduzir_generos_para_pt(lista_generos_en):
+    """Traduz uma lista de gêneros do inglês para o português."""
+    return [TRADUCOES_GENEROS.get(genero, genero) for genero in lista_generos_en]
+
+def traduzir_generos_para_en(lista_generos_pt):
+    """Traduz uma lista de gêneros do português para o inglês."""
+    return [REVERSE_TRADUCOES_GENEROS.get(genero, genero) for genero in lista_generos_pt]
 def prepare_data_for_boxplot(df, top_n=10):
     df_exploded = df.dropna(subset=['genres']).copy()
     df_exploded['genres'] = df_exploded['genres'].str.split(', ')
@@ -96,7 +101,7 @@ def render_main_plots(df_final_filtered):
     top_genres = genre_counts.most_common(10)
     if top_genres:
         genres_names, genres_vals = zip(*top_genres)
-        genres_names_traduzidos = traduzir_generos(list(genres_names))
+        genres_names_traduzidos = traduzir_generos_para_pt(list(genres_names))
         fig3 = px.bar(x=genres_vals, y=genres_names_traduzidos, orientation='h', color=genres_vals, color_continuous_scale='Blues_r', labels={'x': 'Número de Filmes', 'y': 'Gênero'})
         fig3.update_layout(yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig3, use_container_width=True)
@@ -273,7 +278,7 @@ if page == "📊 Análise Exploratória":
         year_range = st.sidebar.slider("📅 Intervalo de Anos", min_year, max_year, (min_year, max_year))
         
         all_genres = sorted(list(set([g.strip() for s in df['genres'].dropna() for g in s.split(',')])))
-        all_genres_translated = traduzir_generos(all_genres)
+        all_genres_translated = traduzir_generos_para_pt(all_genres)
         selected_genres_translated = st.sidebar.multiselect("🎭 Gêneros", all_genres_translated, default=all_genres_translated)
         selected_genres_english = [REVERSE_TRADUCOES_GENEROS.get(g, g) for g in selected_genres_translated]
         
@@ -323,9 +328,9 @@ if page == "📊 Análise Exploratória":
     else:
         st.error("Não foi possível carregar os dados para a análise.")
 
-# ==============================================================================
-# === PÁGINA 2: MACHINE LEARNING ==============================================
-# ==============================================================================
+    # ==============================================================================
+    # === PÁGINA 2: MACHINE LEARNING ==============================================
+    # ==============================================================================
 elif page == "🤖 Modelos de Machine Learning":
 
     st.sidebar.header("🤖 Filtros do Recomendador")
@@ -369,47 +374,52 @@ elif page == "🤖 Modelos de Machine Learning":
 
 
     # 🧾 3. Criar lista com "Nome (código)" e dicionário reverso
+    generos_unicos_en = sorted(df['genres'].dropna().astype(str).str.split(', ').explode().unique().tolist())
+    generos_legiveis = traduzir_generos_para_pt(generos_unicos_en)
     idiomas_legiveis = [f"{language_map.get(code, 'Outro')} ({code})" for code in idiomas_unicos]
     codigo_por_idioma_legivel = {f"{language_map.get(code, 'Outro')} ({code})": code for code in idiomas_unicos}
-
+    
     # 🧩 4. Formulário de entrada
     with st.form("prediction_form"):
-        col_form1, col_form2 = st.columns(2)
-        with col_form1:
-            budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
-            runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
-            idioma_escolhido = st.selectbox("Idioma Original", options=idiomas_legiveis)
-            genres = st.multiselect("Gêneros", options=generos_unicos, placeholder="Action, Adventure, Science Fiction")
+            col_form1, col_form2 = st.columns(2)
+            with col_form1:
+                budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
+                runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
+                idioma_escolhido = st.selectbox("Idioma Original", options=idiomas_legiveis)
+                genres_selecionados_pt = st.multiselect("Gêneros",options=generos_legiveis,placeholder="Ação, Aventura, Ficção Científica")
 
-        with col_form2:
-            production_companies = st.multiselect("Produtora(s)", options=produtoras_unicas, placeholder="Warner Bros. Pictures")
-            cast = st.multiselect("Elenco Principal", options=atores_unicos, placeholder="Leonardo DiCaprio, Tom Hanks")
-            director = st.multiselect("Diretor(es)", options=diretores_unicos, placeholder="Christopher Nolan")
+            with col_form2:
+                production_companies = st.multiselect("Produtora(s)", options=produtoras_unicas, placeholder="Warner Bros. Pictures")
+                cast = st.multiselect("Elenco Principal", options=atores_unicos, placeholder="Leonardo DiCaprio, Tom Hanks")
+                director = st.multiselect("Diretor(es)", options=diretores_unicos, placeholder="Christopher Nolan")
 
-        submitted = st.form_submit_button("Prever Receita")
+            submitted = st.form_submit_button("Prever Receita")
 
-        if submitted:
-            genres_formatted = ", ".join(genres)
-            production_companies_formatted = ", ".join(production_companies)
-            cast_formatted = ", ".join(cast)
-            director_formatted = ", ".join(director)
-            language_code = codigo_por_idioma_legivel[idioma_escolhido]
+            if submitted:
+                genres_selecionados_en = traduzir_generos_para_en(genres_selecionados_pt)
+                genres_formatted = ", ".join(genres_selecionados_en)
+                
+                production_companies_formatted = ", ".join(production_companies)
+                cast_formatted = ", ".join(cast)
+                director_formatted = ", ".join(director)
+                language_code = codigo_por_idioma_legivel[idioma_escolhido]
 
-            # ✅ DataFrame com nomes exatos que o pipeline espera
-            input_data = pd.DataFrame({
-                'budget': [budget],
-                'original_language': [language_code],
-                'runtime': [runtime],
-                'genres': [genres_formatted],
-                'production_companies': [production_companies_formatted],
-                'cast': [cast_formatted],
-                'director': [director_formatted]
-            })
+                # ✅ DataFrame com nomes exatos que o pipeline espera
+                input_data = pd.DataFrame({
+                    'budget': [budget],
+                    'original_language': [language_code],
+                    'runtime': [runtime],
+                    'genres': [genres_formatted], 
+                    'production_companies': [production_companies_formatted],
+                    'cast': [cast_formatted],
+                    'director': [director_formatted]
+                })
 
-            with st.spinner("Processando..."):
-                pipeline = ml_artifacts['regression_pipeline']
-                prediction = pipeline.predict(input_data)
-                predicted_revenue = prediction[0]
 
-            st.success("Previsão Concluída!")
-            st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
+                with st.spinner("Processando..."):
+                    pipeline = ml_artifacts['regression_pipeline']
+                    prediction = pipeline.predict(input_data)
+                    predicted_revenue = prediction[0]
+
+                st.success("Previsão Concluída!")
+                st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
