@@ -341,92 +341,98 @@ if page == "📊 Análise Exploratória":
     # ==============================================================================
 elif page == "🤖 Modelos de Machine Learning":
 
-    st.sidebar.header("🤖 Filtros do Recomendador")
-    num_recommendations = st.sidebar.slider(
-        "Número de Recomendações",
-        min_value=3, max_value=20, value=5, step=1,
-        help="Selecione quantos filmes você deseja que o sistema recomende."
+    st.sidebar.header("⚙️ Opções do Modelo")
+    ml_model_choice = st.sidebar.radio(
+        "Escolha o Modelo:",
+        ["Sistema de Recomendação de Filmes", "Previsão de Receita de Bilheteria"],
+        label_visibility="collapsed"
     )
-    
+    st.sidebar.divider()
+
     st.header("🤖 Modelos de Machine Learning")
     if ml_artifacts is None:
         pass
     else:
-        st.subheader("🍿 Sistema de Recomendação de Filmes")
-        st.markdown("Selecione um filme e veja recomendações aleatórias baseadas no conteúdo.")
-        df_rec = ml_artifacts['df_rec']
-        cosine_sim = ml_artifacts['cosine_sim']
-        indices = pd.Series(df_rec.index, index=df_rec['title']).drop_duplicates()
-        def get_recommendations(title, num_recs, cosine_sim=cosine_sim):
-            idx = indices[title]
-            sim_scores_pool = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:51]
-            num_to_sample = min(num_recs, len(sim_scores_pool))
-            random_sim_scores = random.sample(sim_scores_pool, num_to_sample)
-            movie_indices = [i[0] for i in random_sim_scores]
-            return df_rec['title'].iloc[movie_indices]
-        movie_list = df_rec['title'].unique()
-        selected_movie = st.selectbox("Escolha um filme:", movie_list)
-        if st.button("Recomendar Filmes Similares"):
-            with st.spinner("Buscando recomendações..."):
-                recommendations = get_recommendations(selected_movie, num_recommendations)
-                st.success("Aqui estão suas recomendações:")
-                for i, movie in enumerate(recommendations):
-                    st.write(f"**{i+1}.** {movie}")
-        st.divider()
-    
-    st.subheader("💸 Previsão de Receita de Bilheteria")
-    st.markdown("Insira os dados de um filme hipotético para prever sua receita potencial.")
+        if ml_model_choice == "Sistema de Recomendação de Filmes":
+            st.subheader("🍿 Sistema de Recomendação de Filmes")
+            st.markdown("Selecione um filme e veja recomendações aleatórias baseadas no conteúdo.")
+            df_rec = ml_artifacts['df_rec']
+            cosine_sim = ml_artifacts['cosine_sim']
+            indices = pd.Series(df_rec.index, index=df_rec['title']).drop_duplicates()
+            def get_recommendations(title, num_recs, cosine_sim=cosine_sim):
+                idx = indices[title]
+                sim_scores_pool = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:51]
+                num_to_sample = min(num_recs, len(sim_scores_pool))
+                random_sim_scores = random.sample(sim_scores_pool, num_to_sample)
+                movie_indices = [i[0] for i in random_sim_scores]
+                return df_rec['title'].iloc[movie_indices]
+            movie_list = df_rec['title'].unique()
+            selected_movie = st.selectbox("Escolha um filme:", movie_list)
+            num_recommendations = st.slider(
+                "Número de Recomendações",
+                min_value=3, max_value=20, value=5, step=1,
+                help="Selecione quantos filmes você deseja que o sistema recomende."
+            )
+            if st.button("Recomendar Filmes Similares"):
+                with st.spinner("Buscando recomendações..."):
+                    recommendations = get_recommendations(selected_movie, num_recommendations)
+                    st.success("Aqui estão suas recomendações:")
+                    for i, movie in enumerate(recommendations):
+                        st.write(f"**{i+1}.** {movie}")
+        elif ml_model_choice == "Previsão de Receita de Bilheteria":
+            st.subheader("💸 Previsão de Receita de Bilheteria")
+            st.markdown("Insira os dados de um filme hipotético para prever sua receita potencial.")
 
-    # 🔄 1. Obter todos os idiomas únicos do DataFrame original
-    idiomas_unicos = sorted(df['original_language'].dropna().unique().tolist())
+            # 🔄 1. Obter todos os idiomas únicos do DataFrame original
+            idiomas_unicos = sorted(df['original_language'].dropna().unique().tolist())
 
 
-    # 🧾 3. Criar lista com "Nome (código)" e dicionário reverso
-    generos_unicos_en = sorted(df['genres'].dropna().astype(str).str.split(', ').explode().unique().tolist())
-    generos_legiveis = traduzir_generos_para_pt(generos_unicos_en)
-    idiomas_legiveis = [f"{language_map.get(code, 'Outro')} ({code})" for code in idiomas_unicos]
-    codigo_por_idioma_legivel = {f"{language_map.get(code, 'Outro')} ({code})": code for code in idiomas_unicos}
-    
-    # 🧩 4. Formulário de entrada
-    with st.form("prediction_form"):
-            col_form1, col_form2 = st.columns(2)
-            with col_form1:
-                budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
-                runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
-                idioma_escolhido = st.selectbox("Idioma Original", options=idiomas_legiveis)
-                genres_selecionados_pt = st.multiselect("Gêneros",options=generos_legiveis,placeholder="Ação, Aventura, Ficção Científica")
+            # 🧾 3. Criar lista com "Nome (código)" e dicionário reverso
+            generos_unicos_en = sorted(df['genres'].dropna().astype(str).str.split(', ').explode().unique().tolist())
+            generos_legiveis = traduzir_generos_para_pt(generos_unicos_en)
+            idiomas_legiveis = [f"{language_map.get(code, 'Outro')} ({code})" for code in idiomas_unicos]
+            codigo_por_idioma_legivel = {f"{language_map.get(code, 'Outro')} ({code})": code for code in idiomas_unicos}
+            
+            # 🧩 4. Formulário de entrada
+            with st.form("prediction_form"):
+                    col_form1, col_form2 = st.columns(2)
+                    with col_form1:
+                        budget = st.number_input("Orçamento (USD)", min_value=10000, value=50000000, step=1000000)
+                        runtime = st.number_input("Duração (minutos)", min_value=60, value=120, step=5)
+                        idioma_escolhido = st.selectbox("Idioma Original", options=idiomas_legiveis)
+                        genres_selecionados_pt = st.multiselect("Gêneros",options=generos_legiveis,placeholder="Ação, Aventura, Ficção Científica")
 
-            with col_form2:
-                production_companies = st.multiselect("Produtora(s)", options=produtoras_unicas, placeholder="Warner Bros. Pictures")
-                cast = st.multiselect("Elenco Principal", options=atores_unicos, placeholder="Leonardo DiCaprio, Tom Hanks")
-                director = st.multiselect("Diretor(es)", options=diretores_unicos, placeholder="Christopher Nolan")
+                    with col_form2:
+                        production_companies = st.multiselect("Produtora(s)", options=produtoras_unicas, placeholder="Warner Bros. Pictures")
+                        cast = st.multiselect("Elenco Principal", options=atores_unicos, placeholder="Leonardo DiCaprio, Tom Hanks")
+                        director = st.multiselect("Diretor(es)", options=diretores_unicos, placeholder="Christopher Nolan")
 
-            submitted = st.form_submit_button("Prever Receita")
+                    submitted = st.form_submit_button("Prever Receita")
 
-            if submitted:
-                genres_selecionados_en = traduzir_generos_para_en(genres_selecionados_pt)
-                genres_formatted = ", ".join(genres_selecionados_en)
-                
-                production_companies_formatted = ", ".join(production_companies)
-                cast_formatted = ", ".join(cast)
-                director_formatted = ", ".join(director)
-                language_code = codigo_por_idioma_legivel[idioma_escolhido]
+                    if submitted:
+                        genres_selecionados_en = traduzir_generos_para_en(genres_selecionados_pt)
+                        genres_formatted = ", ".join(genres_selecionados_en)
+                        
+                        production_companies_formatted = ", ".join(production_companies)
+                        cast_formatted = ", ".join(cast)
+                        director_formatted = ", ".join(director)
+                        language_code = codigo_por_idioma_legivel[idioma_escolhido]
 
-                # ✅ DataFrame com nomes exatos que o pipeline espera
-                input_data = pd.DataFrame({
-                    'budget': [budget],
-                    'original_language': [language_code],
-                    'runtime': [runtime],
-                    'genres': [genres_formatted], 
-                    'production_companies': [production_companies_formatted],
-                    'cast': [cast_formatted],
-                    'director': [director_formatted]
-                })
+                        # ✅ DataFrame com nomes exatos que o pipeline espera
+                        input_data = pd.DataFrame({
+                            'budget': [budget],
+                            'original_language': [language_code],
+                            'runtime': [runtime],
+                            'genres': [genres_formatted], 
+                            'production_companies': [production_companies_formatted],
+                            'cast': [cast_formatted],
+                            'director': [director_formatted]
+                        })
 
-                with st.spinner("Processando..."):
-                    pipeline = ml_artifacts['regression_pipeline']
-                    prediction = pipeline.predict(input_data)
-                    predicted_revenue = prediction[0]
+                        with st.spinner("Processando..."):
+                            pipeline = ml_artifacts['regression_pipeline']
+                            prediction = pipeline.predict(input_data)
+                            predicted_revenue = prediction[0]
 
-                st.success("Previsão Concluída!")
-                st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
+                        st.success("Previsão Concluída!")
+                        st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
