@@ -55,7 +55,7 @@ def train_and_save_pipeline():
     # O Pipeline encadeia o pré-processamento e o modelo de regressão.
     model_pipeline = Pipeline(steps=[
         ('preprocessor', preprocessor),
-        ('regressor', RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1))
+        ('regressor', RandomForestRegressor(n_estimators=80, random_state=42, n_jobs=-1))
     ])
 
 
