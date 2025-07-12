@@ -10,6 +10,7 @@ from collections import Counter
 import warnings
 import random
 
+
 # Ignorar avisos de depreciação
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 
@@ -30,6 +31,7 @@ def load_base_data():
                 lambda row: ((row['revenue'] - row['budget']) / row['budget']) * 100 if row['budget'] > 0 else 0,
                 axis=1
             )
+            
         if 'release_date' in df.columns:
             df['release_year'] = pd.to_datetime(df['release_date'], errors='coerce').dt.year
         return df
@@ -37,17 +39,27 @@ def load_base_data():
         st.error("ERRO: Arquivo 'tmdb_new.csv' não encontrado. O app não pode continuar sem ele.")
         return None
 
+
+def space_remover_tokenizer(text):
+    tokens = text.split(',')
+    cleaned_tokens = [token.replace(" ", "").lower() for token in tokens if token.strip()]
+    return cleaned_tokens
+
+
 @st.cache_resource
 def load_ml_artifacts():
     artifacts = {}
     try:
         artifacts['regression_pipeline'] = joblib.load("full_model_pipeline.pkl")
-        artifacts['df_rec'] = pd.read_csv('df_rec.csv')
-        artifacts['cosine_sim'] = joblib.load('cosine_sim.pkl')
+        artifacts['kmeans_model'] = joblib.load('kmeans_model.pkl')
+        artifacts['vectorizer'] = joblib.load("vectorizer.pkl")
+
+        artifacts['df_rec'] = pd.read_csv('df_rec.csv')  # ⬅️ Aqui está o que estava faltando
         return artifacts
     except FileNotFoundError:
         st.error("**Arquivos dos modelos não encontrados!** Por favor, execute os scripts de treinamento para gerá-los.", icon="🚨")
         return None
+
 
 # --- Dicionários e Funções Auxiliares ---
 language_map = {'en': 'Inglês', 'fr': 'Francês', 'ko': 'Coreano', 'ja': 'Japonês', 'zh': 'Chinês', 'es': 'Espanhol', 'de': 'Alemão', 'hi': 'Hindi', 'ru': 'Russo', 'it': 'Italiano', 'pt': 'Português', 'ar': 'Árabe', 'cn': 'Cantonês', 'sv': 'Sueco', 'da': 'Dinamarquês', 'no': 'Norueguês', 'fi': 'Finlandês', 'nl': 'Holandês', 'pl': 'Polonês', 'th': 'Tailandês', 'id': 'Indonésio', 'cs': 'Checo', 'hu': 'Húngaro', 'tr': 'Turco', 'el': 'Grego', 'fa': 'Persa', 'he': 'Hebraico', 'te': 'Telugo', 'ml': 'Malaiala', 'sr': 'Sérvio', 'bg': 'Búlgaro', 'uk': 'Ucraniano', 'ta': 'Tâmil', 'ab': 'Abcázio', 'az': 'Azerbaijano', 'bm': 'Bâmbara', 'bn': 'Bengali', 'bs': 'Bósnio', 'ca': 'Catalão', 'dv': 'Diveí', 'dz': 'Dzongkha', 'et': 'Estoniano', 'eu': 'Basco', 'ff': 'Fula', 'ga': 'Irlandês', 'gl': 'Galego', 'gu': 'Gujarati', 'hr': 'Croata', 'hy': 'Armênio', 'ig': 'Ibo', 'is': 'Islandês', 'iu': 'Inuktitut', 'km': 'Khmer', 'kn': 'Canarês', 'ku': 'Curdo', 'la': 'Latim', 'lt': 'Lituano', 'lv': 'Letão', 'mn': 'Mongol', 'mr': 'Marata', 'ms': 'Malaio', 'ne': 'Nepali', 'pa': 'Panjabi', 'ps': 'Pachto', 'ro': 'Romeno', 'si': 'Cingalês', 'sk': 'Eslovaco', 'sl': 'Esloveno', 'sw': 'Suaíli', 'tl': 'Tagalo', 'tn': 'Tswana', 'ur': 'Urdu', 'vi': 'Vietnamita', 'xx': 'Desconhecido'}
@@ -357,15 +369,28 @@ elif page == "🤖 Modelos de Machine Learning":
             st.subheader("🍿 Sistema de Recomendação de Filmes")
             st.markdown("Selecione um filme e veja recomendações aleatórias baseadas no conteúdo.")
             df_rec = ml_artifacts['df_rec']
-            cosine_sim = ml_artifacts['cosine_sim']
+            kmeans = ml_artifacts['kmeans_model']
+            vectors = ml_artifacts['vectorizer']
+
+            # Série que mapeia títulos para índices
             indices = pd.Series(df_rec.index, index=df_rec['title']).drop_duplicates()
-            def get_recommendations(title, num_recs, cosine_sim=cosine_sim):
+
+            def get_recommendations(title, num_recs):
                 idx = indices[title]
-                sim_scores_pool = sorted(list(enumerate(cosine_sim[idx])), key=lambda x: x[1], reverse=True)[1:51]
-                num_to_sample = min(num_recs, len(sim_scores_pool))
-                random_sim_scores = random.sample(sim_scores_pool, num_to_sample)
-                movie_indices = [i[0] for i in random_sim_scores]
-                return df_rec['title'].iloc[movie_indices]
+                cluster_id = kmeans.labels_[idx]  # Cluster do filme selecionado
+                # Pega todos os filmes que estão no mesmo cluster (menos o próprio)
+                cluster_indices = np.where(kmeans.labels_ == cluster_id)[0]
+                cluster_indices = cluster_indices[cluster_indices != idx]
+
+                # Evita erro se o cluster tiver poucos filmes
+                num_to_sample = min(num_recs, len(cluster_indices))
+                if num_to_sample == 0:
+                    return []
+
+                sampled_indices = random.sample(list(cluster_indices), num_to_sample)
+                return df_rec['title'].iloc[sampled_indices]
+
+
             movie_list = df_rec['title'].unique()
             selected_movie = st.selectbox("Escolha um filme:", movie_list)
             num_recommendations = st.slider(
