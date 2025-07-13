@@ -9,6 +9,8 @@ import plotly.graph_objects as go
 from collections import Counter
 import warnings
 import random
+import shap
+from sklearn.pipeline import Pipeline
 
 
 # Ignorar avisos de depreciação
@@ -461,3 +463,55 @@ elif page == "🤖 Modelos de Machine Learning":
 
                         st.success("Previsão Concluída!")
                         st.metric(label="Receita Estimada (USD)", value=f"$ {predicted_revenue:,.2f}")
+
+                        
+                        st.subheader("🔍 Explicação da Previsão com SHAP")
+
+                        with st.spinner("Gerando explicação SHAP..."):
+
+                            # Transforme os dados usando o pré-processador do pipeline
+                            X_transformed = pipeline.named_steps['preprocessor'].transform(input_data)
+
+                            # Se for matriz esparsa, converta para densa
+                            if hasattr(X_transformed, 'toarray'):
+                                X_transformed = X_transformed.toarray()
+
+                            # Force float64 para evitar erros do numpy/shap
+                            X_transformed = X_transformed.astype(np.float64)
+
+                            # Pega o regressor para o SHAP
+                            regressor = pipeline.named_steps['regressor']
+
+                            # Crie o explainer com 'interventional' para pipelines complexos
+                            explainer = shap.TreeExplainer(regressor, feature_perturbation='interventional')
+
+                            # Calcule os valores SHAP para a amostra
+                            shap_values = explainer.shap_values(X_transformed, check_additivity=False)
+
+                            # Pegue os nomes das features transformadas (vetorizadas, normalizadas, etc)
+                            feature_names = pipeline.named_steps['preprocessor'].get_feature_names_out(input_data.columns)
+
+                            # Filtre os valores SHAP para só os relevantes (exemplo: abs > um threshold)
+                            threshold = 1e-3
+                            idxs = np.where(np.abs(shap_values[0]) > threshold)[0]
+                            shap_values_filtered = shap_values[0][idxs]
+                            feature_names_filtered = feature_names[idxs]
+
+                            # Crie um gráfico plotly horizontal com barras
+                            fig = go.Figure(go.Bar(
+                                x=shap_values_filtered,
+                                y=feature_names_filtered,
+                                orientation='h',
+                                marker_color=['green' if val > 0 else 'red' for val in shap_values_filtered]
+                            ))
+
+                            fig.update_layout(
+                                title="Importância das Features (SHAP) para a Predição",
+                                xaxis_title="Valor SHAP",
+                                yaxis_title="Feature",
+                                yaxis=dict(autorange="reversed"),  # para ordem decrescente na vertical
+                                template="plotly_dark",
+                                height=600
+                            )
+
+                            st.plotly_chart(fig, use_container_width=True)
