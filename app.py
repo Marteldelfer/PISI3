@@ -109,41 +109,7 @@ def render_main_plots(df_final_filtered):
     fig = go.Figure(go.Histogram2dContour(x=df_final_filtered['budget'], y=df_final_filtered['revenue'], contours=dict(coloring='fill'), colorscale='Blues', reversescale=True, ncontours=20, hoverinfo='x+y+z'))
     fig.update_layout(title='', xaxis=dict(title=dict(text="Orçamento (USD)", font=dict(size=14)), tickfont=dict(size=12), range=[df_budget_revenue['budget'].min(), df_budget_revenue['budget'].quantile(0.75)]), yaxis=dict(title=dict(text="Receita (USD)", font=dict(size=14)), tickfont=dict(size=12), range=[df_budget_revenue['revenue'].min(), df_budget_revenue['revenue'].quantile(0.85)]))
     st.plotly_chart(fig, use_container_width=True)
-    st.subheader("🌍 Nota Média por Idioma (Top 10)")
-    lang_counts = df_final_filtered['original_language'].value_counts()
-    frequent_langs = lang_counts[lang_counts > 20].index
-    filtered_df_lang = df_final_filtered[df_final_filtered['original_language'].isin(frequent_langs)]
-    if not filtered_df_lang.empty:
-        language_ratings = filtered_df_lang.groupby('original_language')['vote_average'].mean().sort_values(ascending=False).head(10)
-        languages_pt = [language_map.get(lang, lang) for lang in language_ratings.index]
-        fig2 = px.bar(x=language_ratings.values, y=languages_pt, orientation='h', color=language_ratings.values, color_continuous_scale='Viridis_r', labels={'x': 'Nota Média', 'y': 'Idioma'})
-        st.plotly_chart(fig2, use_container_width=True)
-    st.subheader("🎭 Top 10 Gêneros por Número de Filmes")
-    genre_counts = Counter([g.strip() for genre_str in df_final_filtered['genres'].dropna() for g in genre_str.split(',')])
-    top_genres = genre_counts.most_common(10)
-    if top_genres:
-        genres_names, genres_vals = zip(*top_genres)
-        genres_names_traduzidos = traduzir_generos_para_pt(list(genres_names))
-        fig3 = px.bar(x=genres_vals, y=genres_names_traduzidos, orientation='h', color=genres_vals, color_continuous_scale='Blues', labels={'x': 'Número de Filmes', 'y': 'Gênero'})
-        fig3.update_layout(yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig3, use_container_width=True)
-    st.subheader("💎 Top 10 'Joias Escondidas'")
-    mediana_pop = df_final_filtered['popularity'].median()
-    undervalued = df_final_filtered[(df_final_filtered['popularity'] < mediana_pop) & (df_final_filtered['vote_average'] >= 7.5) & (df_final_filtered['vote_count'] >= 100)]
-    top_pearl = undervalued.sort_values(['vote_average', 'vote_count'], ascending=[False, False]).head(10)
-    if not top_pearl.empty:
-        fig6 = px.bar(top_pearl, x='vote_average', y='title', orientation='h', color='vote_average', color_continuous_scale='Teal', labels={'vote_average': 'Média de Votos', 'title': 'Título do Filme'})
-        fig6.update_layout(yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig6, use_container_width=True)
-    st.subheader("⏱️ Distribuição da Duração dos Filmes (Runtime)")
-    fig_runtime = px.histogram(df_final_filtered, x='runtime', nbins=50, color_discrete_sequence=['purple'], labels={'runtime': 'Duração (minutos)'})
-    st.plotly_chart(fig_runtime, use_container_width=True)
-    st.subheader("⭐ Popularidade vs. Nota Média")
-    fig_pop = go.Figure(data=go.Histogram2dContour(x=df_final_filtered['popularity'], y=df_final_filtered['vote_average'], colorscale='OrRd', reversescale=False, contours=dict(coloring='fill', showlines=True), ncontours=20))
-    fig_pop.update_layout(xaxis=dict(title='Popularidade', range=[0, df_final_filtered['popularity'].quantile(0.95)]), yaxis=dict(title='Nota Média'))
-    st.plotly_chart(fig_pop, use_container_width=True)
 
-    # Novo gráfico: Incidência Anual de Filmes com Alta Arrecadação
     st.subheader("📊 Incidência Anual de Filmes com Alta Arrecadação (> $10M)")
     df_high_revenue = df_final_filtered[df_final_filtered['revenue'] > 10000000].copy()
     if not df_high_revenue.empty:
@@ -155,17 +121,15 @@ def render_main_plots(df_final_filtered):
             yearly_high_revenue,
             x='Ano de Lançamento',
             y='Número de Filmes',
-            title='Número de Filmes com Receita Acima de $10 Milhões por Ano',
             labels={'Número de Filmes': 'Contagem de Filmes', 'Ano de Lançamento': 'Ano'},
             markers=True
         )
-        fig_high_revenue_yearly.update_traces(line_color='darkblue', line_width=2)
+        fig_high_revenue_yearly.update_traces(line_color='red', line_width=2)
         fig_high_revenue_yearly.update_layout(xaxis_title="Ano de Lançamento", yaxis_title="Número de Filmes")
         st.plotly_chart(fig_high_revenue_yearly, use_container_width=True)
     else:
         st.info("Nenhum filme com alta arrecadação encontrado para os filtros selecionados.")
 
-    # Novo gráfico: Incidência Mensal de Filmes com Alta Arrecadação
     st.subheader("📅 Incidência Mensal de Filmes com Alta Arrecadação (> $10M)")
     # Certifique-se de que 'release_month' existe e é numérico
     df_high_revenue_monthly = df_final_filtered[
@@ -193,6 +157,72 @@ def render_main_plots(df_final_filtered):
         st.plotly_chart(fig_high_revenue_monthly, use_container_width=True)
     else:
         st.info("Nenhum filme com alta arrecadação encontrado para os filtros selecionados no período mensal.")
+
+    st.subheader("⏱️ Distribuição da Duração dos Filmes (Runtime)")
+    fig_runtime = px.histogram(df_final_filtered, x='runtime', nbins=50, color_discrete_sequence=['purple'], labels={'runtime': 'Duração (minutos)'})
+    st.plotly_chart(fig_runtime, use_container_width=True)
+    
+    st.subheader("🌍 Nota Média por Idioma (Top 10)")
+    lang_counts = df_final_filtered['original_language'].value_counts()
+    frequent_langs = lang_counts[lang_counts > 20].index
+    filtered_df_lang = df_final_filtered[df_final_filtered['original_language'].isin(frequent_langs)]
+    if not filtered_df_lang.empty:
+        language_ratings = filtered_df_lang.groupby('original_language')['vote_average'].mean().sort_values(ascending=False).head(10)
+        languages_pt = [language_map.get(lang, lang) for lang in language_ratings.index]
+        fig2 = px.bar(x=language_ratings.values, y=languages_pt, orientation='h', color=language_ratings.values, color_continuous_scale='Viridis_r', labels={'x': 'Nota Média', 'y': 'Idioma'})
+        st.plotly_chart(fig2, use_container_width=True)
+
+    st.subheader("🎭 Top 10 Gêneros por Número de Filmes")
+    genre_counts = Counter([g.strip() for genre_str in df_final_filtered['genres'].dropna() for g in genre_str.split(',')])
+    top_genres = genre_counts.most_common(10)
+    if top_genres:
+        genres_names, genres_vals = zip(*top_genres)
+        genres_names_traduzidos = traduzir_generos_para_pt(list(genres_names))
+        fig3 = px.bar(x=genres_vals, y=genres_names_traduzidos, orientation='h', color=genres_vals, color_continuous_scale='Blues', labels={'x': 'Número de Filmes', 'y': 'Gênero'})
+        fig3.update_layout(yaxis=dict(autorange="reversed"))
+        st.plotly_chart(fig3, use_container_width=True)
+
+    st.subheader("🎬 Top 10 Diretores de Filmes Aclamados (Avaliação > 8 e Votos > 1000)")
+    df_acclaimed_directors = df_final_filtered[
+        (df_final_filtered['vote_average'] > 8) &
+        (df_final_filtered['vote_count'] > 1000) &
+        (df_final_filtered['director'].notna())
+    ].copy()
+
+    if not df_acclaimed_directors.empty:
+        # Dividir a string de diretores e explodir para ter um diretor por linha
+        df_acclaimed_directors['director'] = df_acclaimed_directors['director'].str.split(', ')
+        df_acclaimed_directors = df_acclaimed_directors.explode('director')
+
+        # Contar a incidência de cada diretor
+        director_counts = df_acclaimed_directors['director'].value_counts().nlargest(10).reset_index()
+        director_counts.columns = ['Diretor', 'Número de Filmes Aclamados']
+
+        fig_acclaimed_directors = px.bar(
+            director_counts,
+            x='Diretor',
+            y='Número de Filmes Aclamados',
+            labels={'Número de Filmes Aclamados': 'Contagem de Filmes', 'Diretor': 'Diretor'},
+            color_discrete_sequence=px.colors.qualitative.Plotly # Usar uma paleta de cores Plotly
+        )
+        fig_acclaimed_directors.update_xaxes(tickangle=0) # Rotacionar os rótulos do eixo X
+        st.plotly_chart(fig_acclaimed_directors, use_container_width=True)
+    else:
+        st.info("Nenhum diretor com filmes aclamados encontrado para os filtros selecionados.")
+
+    st.subheader("💎 Top 10 'Joias Escondidas'")
+    mediana_pop = df_final_filtered['popularity'].median()
+    undervalued = df_final_filtered[(df_final_filtered['popularity'] < mediana_pop) & (df_final_filtered['vote_average'] >= 7.5) & (df_final_filtered['vote_count'] >= 100)]
+    top_pearl = undervalued.sort_values(['vote_average', 'vote_count'], ascending=[False, False]).head(10)
+    if not top_pearl.empty:
+        fig6 = px.bar(top_pearl, x='vote_average', y='title', orientation='h', color='vote_average', color_continuous_scale='Teal', labels={'vote_average': 'Média de Votos', 'title': 'Título do Filme'})
+        fig6.update_layout(yaxis=dict(autorange="reversed"))
+        st.plotly_chart(fig6, use_container_width=True)
+
+    st.subheader("⭐ Popularidade vs. Nota Média")
+    fig_pop = go.Figure(data=go.Histogram2dContour(x=df_final_filtered['popularity'], y=df_final_filtered['vote_average'], colorscale='OrRd', reversescale=False, contours=dict(coloring='fill', showlines=True), ncontours=20))
+    fig_pop.update_layout(xaxis=dict(title='Popularidade', range=[0, df_final_filtered['popularity'].quantile(0.95)]), yaxis=dict(title='Nota Média'))
+    st.plotly_chart(fig_pop, use_container_width=True)
 
 
 def plot_profit_histogram(df, limit):
