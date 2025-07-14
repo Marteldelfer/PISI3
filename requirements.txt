@@ -6,4 +6,5 @@ matplotlib
 seaborn
 plotly
 scikit-learn
+shap
 
