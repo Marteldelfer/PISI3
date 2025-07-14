@@ -36,6 +36,8 @@ def load_base_data():
             
         if 'release_date' in df.columns:
             df['release_year'] = pd.to_datetime(df['release_date'], errors='coerce').dt.year
+            # Adicionando a coluna de mês para o gráfico mensal
+            df['release_month'] = pd.to_datetime(df['release_date'], errors='coerce').dt.month
         return df
     except FileNotFoundError:
         st.error("ERRO: Arquivo 'tmdb_new.csv' não encontrado. O app não pode continuar sem ele.")
@@ -86,6 +88,12 @@ def prepare_data_for_boxplot(df, top_n=10):
     
     return df_filtered
 
+# Mapeamento de números de mês para nomes em português
+month_names_map = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril', 5: 'Maio', 6: 'Junho',
+    7: 'Julho', 8: 'Agosto', 9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+}
+
 # --- Funções de Renderização dos Gráficos ---
 @st.fragment
 def render_main_plots(df_final_filtered):
@@ -134,6 +142,58 @@ def render_main_plots(df_final_filtered):
     fig_pop = go.Figure(data=go.Histogram2dContour(x=df_final_filtered['popularity'], y=df_final_filtered['vote_average'], colorscale='OrRd', reversescale=False, contours=dict(coloring='fill', showlines=True), ncontours=20))
     fig_pop.update_layout(xaxis=dict(title='Popularidade', range=[0, df_final_filtered['popularity'].quantile(0.95)]), yaxis=dict(title='Nota Média'))
     st.plotly_chart(fig_pop, use_container_width=True)
+
+    # Novo gráfico: Incidência Anual de Filmes com Alta Arrecadação
+    st.subheader("📊 Incidência Anual de Filmes com Alta Arrecadação (> $10M)")
+    df_high_revenue = df_final_filtered[df_final_filtered['revenue'] > 10000000].copy()
+    if not df_high_revenue.empty:
+        # Contar a incidência por ano
+        yearly_high_revenue = df_high_revenue['release_year'].value_counts().sort_index().reset_index()
+        yearly_high_revenue.columns = ['Ano de Lançamento', 'Número de Filmes']
+
+        fig_high_revenue_yearly = px.line(
+            yearly_high_revenue,
+            x='Ano de Lançamento',
+            y='Número de Filmes',
+            title='Número de Filmes com Receita Acima de $10 Milhões por Ano',
+            labels={'Número de Filmes': 'Contagem de Filmes', 'Ano de Lançamento': 'Ano'},
+            markers=True
+        )
+        fig_high_revenue_yearly.update_traces(line_color='darkblue', line_width=2)
+        fig_high_revenue_yearly.update_layout(xaxis_title="Ano de Lançamento", yaxis_title="Número de Filmes")
+        st.plotly_chart(fig_high_revenue_yearly, use_container_width=True)
+    else:
+        st.info("Nenhum filme com alta arrecadação encontrado para os filtros selecionados.")
+
+    # Novo gráfico: Incidência Mensal de Filmes com Alta Arrecadação
+    st.subheader("📅 Incidência Mensal de Filmes com Alta Arrecadação (> $10M)")
+    # Certifique-se de que 'release_month' existe e é numérico
+    df_high_revenue_monthly = df_final_filtered[
+        (df_final_filtered['revenue'] > 10000000) &
+        (df_final_filtered['release_month'].notna())
+    ].copy()
+
+    if not df_high_revenue_monthly.empty:
+        # Contar a incidência por mês
+        monthly_high_revenue = df_high_revenue_monthly['release_month'].value_counts().sort_index().reset_index()
+        monthly_high_revenue.columns = ['Mês de Lançamento', 'Número de Filmes']
+        
+        # Mapear números de mês para nomes
+        monthly_high_revenue['Mês de Lançamento'] = monthly_high_revenue['Mês de Lançamento'].map(month_names_map)
+
+        fig_high_revenue_monthly = px.bar(
+            monthly_high_revenue,
+            x='Mês de Lançamento',
+            y='Número de Filmes',
+            labels={'Número de Filmes': 'Contagem de Filmes', 'Mês de Lançamento': 'Mês'},
+            color_discrete_sequence=['blue'] # Cor azul como na imagem de referência
+        )
+        # Garantir a ordem correta dos meses no eixo X
+        fig_high_revenue_monthly.update_xaxes(categoryorder='array', categoryarray=list(month_names_map.values()))
+        st.plotly_chart(fig_high_revenue_monthly, use_container_width=True)
+    else:
+        st.info("Nenhum filme com alta arrecadação encontrado para os filtros selecionados no período mensal.")
+
 
 def plot_profit_histogram(df, limit):
     st.subheader("📈 Lucros")
