@@ -270,6 +270,44 @@ def prepare_opcoes_para_campos_de_ml(df, top_n_actors=5985): # Adicionado parâm
         st.error(f"Erro ao preparar opções para ML: {e}")
         return None, None, None, None # Retorne None para todas as variáveis em caso de erro
 
+def traduzir_feature_nome(feature_name):
+    # Exemplo nomes de feature_name: 'genres_action', 'language_en', 'companies_warner bros', etc
+
+    if feature_name.startswith("genres__") or feature_name.startswith("genres_"):
+        # Extrair o nome do gênero em inglês
+        genero_en = feature_name.split("__")[-1].replace('_', ' ').title() if "__" in feature_name else feature_name.split("_")[-1].title()
+        # Tentar achar o índice do gênero para pegar tradução
+        if genero_en.lower() in map(str.lower, generos_unicos_en):
+            idx = [g.lower() for g in generos_unicos_en].index(genero_en.lower())
+            genero_pt = generos_legiveis[idx]
+            return f"Gênero: {genero_pt}"
+        else:
+            return f"Gênero: {genero_en}"
+
+    elif feature_name.startswith("language__") or feature_name.startswith("language_"):
+        codigo = feature_name.split("__")[-1] if "__" in feature_name else feature_name.split("_")[-1]
+        idioma = language_map.get(codigo, codigo)
+        return f"Idioma: {idioma} ({codigo})"
+
+    elif feature_name.startswith("companies__") or feature_name.startswith("companies_"):
+        empresa = feature_name.split("__")[-1].replace('_', ' ').title() if "__" in feature_name else feature_name.split("_")[-1].title()
+        return f"Produtora: {empresa}"
+
+    elif feature_name.startswith("cast__") or feature_name.startswith("cast_"):
+        ator = feature_name.split("__")[-1].replace('_', ' ').title() if "__" in feature_name else feature_name.split("_")[-1].title()
+        return f"Elenco: {ator}"
+
+    elif feature_name.startswith("director__") or feature_name.startswith("director_"):
+        diretor = feature_name.split("__")[-1].replace('_', ' ').title() if "__" in feature_name else feature_name.split("_")[-1].title()
+        return f"Diretor: {diretor}"
+
+    else:
+        if feature_name == "num__budget":
+            return "Orçamento:"
+        if feature_name == "num__runtime":
+            return "Duração:"
+        # Para outras features numéricas (ex: budget, runtime)
+        return feature_name.replace('_', ' ').title()
 
 # Carregamento dos dados
 df = load_base_data()
@@ -469,47 +507,57 @@ elif page == "🤖 Modelos de Machine Learning":
 
                         with st.spinner("Gerando explicação SHAP..."):
 
-                            # Transforme os dados usando o pré-processador do pipeline
+                            # 1. Selecionar só as colunas que entram no preprocessor (features de input)
+                            features_entrada = ['budget', 'original_language', 'runtime', 'genres', 'production_companies', 'cast', 'director']
+
+                            # 2. Pegar uma amostra representativa (por exemplo 100 linhas, ou menos se seu df for pequeno)
+                            background_df = df[features_entrada].dropna().sample(n=100, random_state=42)
+
+                            # 3. Transformar essa amostra com o pipeline (pré-processador)
+                            X_background = pipeline.named_steps['preprocessor'].transform(background_df)
+                            if hasattr(X_background, "toarray"):
+                                X_background = X_background.toarray()
+                            X_background = X_background.astype(np.float64)
+
+                            # 4. Criar o explainer com essa base de fundo para feature_perturbation interventional
+                            explainer = shap.TreeExplainer(pipeline.named_steps['regressor'], X_background, feature_perturbation='interventional')
+
+                            # 5. Transformar seu input_data para passar para o explainer
                             X_transformed = pipeline.named_steps['preprocessor'].transform(input_data)
-
-                            # Se for matriz esparsa, converta para densa
-                            if hasattr(X_transformed, 'toarray'):
+                            if hasattr(X_transformed, "toarray"):
                                 X_transformed = X_transformed.toarray()
-
-                            # Force float64 para evitar erros do numpy/shap
                             X_transformed = X_transformed.astype(np.float64)
 
-                            # Pega o regressor para o SHAP
-                            regressor = pipeline.named_steps['regressor']
+                            # 6. Gerar os valores SHAP para seu input específico
+                            shap_values = explainer.shap_values(X_transformed, check_additivity=False)[0]
 
-                            # Crie o explainer com 'interventional' para pipelines complexos
-                            explainer = shap.TreeExplainer(regressor, feature_perturbation='interventional')
-
-                            # Calcule os valores SHAP para a amostra
-                            shap_values = explainer.shap_values(X_transformed, check_additivity=False)
-
-                            # Pegue os nomes das features transformadas (vetorizadas, normalizadas, etc)
+                            # 7. Pegar nomes das features
                             feature_names = pipeline.named_steps['preprocessor'].get_feature_names_out(input_data.columns)
 
-                            # Filtre os valores SHAP para só os relevantes (exemplo: abs > um threshold)
-                            threshold = 1e-3
-                            idxs = np.where(np.abs(shap_values[0]) > threshold)[0]
-                            shap_values_filtered = shap_values[0][idxs]
-                            feature_names_filtered = feature_names[idxs]
 
-                            # Crie um gráfico plotly horizontal com barras
+                            # Pegue apenas os índices das features realmente ativas (não nulas na entrada transformada)
+                            amostra_transformada = X_transformed[0]
+                            idxs_ativos = np.where(amostra_transformada != 0)[0]
+
+                            # Filtre valores SHAP e nomes das features por essas posições
+                            shap_values_local = shap_values[idxs_ativos]  # <-- sem [0] aqui
+                            feature_names_local = feature_names[idxs_ativos]
+
+
+                            feature_names_legiveis = [traduzir_feature_nome(f) for f in feature_names_local]
+
                             fig = go.Figure(go.Bar(
-                                x=shap_values_filtered,
-                                y=feature_names_filtered,
+                                x=shap_values_local,
+                                y=feature_names_legiveis,
                                 orientation='h',
-                                marker_color=['green' if val > 0 else 'red' for val in shap_values_filtered]
+                                marker_color=['green' if val > 0 else 'red' for val in shap_values_local]
                             ))
 
                             fig.update_layout(
-                                title="Importância das Features (SHAP) para a Predição",
-                                xaxis_title="Valor SHAP",
-                                yaxis_title="Feature",
-                                yaxis=dict(autorange="reversed"),  # para ordem decrescente na vertical
+                                title="Importância Local das Features (SHAP)",
+                                xaxis_title="Valor SHAP (impacto na predição)",
+                                yaxis_title="Feature Ativa",
+                                yaxis=dict(autorange="reversed"),
                                 template="plotly_dark",
                                 height=600
                             )

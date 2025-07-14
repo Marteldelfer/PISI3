@@ -43,11 +43,11 @@ def train_and_save_pipeline():
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', StandardScaler(), numeric_features),
-            ('genres', CountVectorizer(), 'genres'),
+            ('genres', CountVectorizer(token_pattern=r'[^,]+'), 'genres'),
             ('language', CountVectorizer(), 'original_language'),
-            ('companies', CountVectorizer(), 'production_companies'),
-            ('cast', CountVectorizer(max_features=200, stop_words='english'), 'cast'),
-            ('director', CountVectorizer(), 'director')
+            ('companies', CountVectorizer(token_pattern=r'[^,]+'), 'production_companies'),
+            ('cast', CountVectorizer(token_pattern=r'[^,]+',max_features=200, stop_words='english'), 'cast'),
+            ('director', CountVectorizer(token_pattern=r'[^,]+'), 'director')
         ],
         remainder='drop'
     )
